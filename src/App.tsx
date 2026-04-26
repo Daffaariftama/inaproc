@@ -332,6 +332,9 @@ export default function App() {
   const toastTimer = useRef<ReturnType<typeof setTimeout>|null>(null);
   const cookFormRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  const infoBarSentinelRef = useRef<HTMLDivElement>(null);
+  const [isInfoBarPinned, setIsInfoBarPinned] = useState(false);
 
   const pages = Math.ceil(total / ITEMS);
   const klpdSuggestions = getSuggestions(KLPD_OPTIONS, klpdInput, draftFilters.kldi);
@@ -351,6 +354,26 @@ export default function App() {
   },[]);
 
   useEffect(()=>{ fetchData("","",0,"2026"); },[fetchData]);
+
+  useEffect(() => {
+    const updateInfoBarPosition = () => {
+      const header = headerRef.current;
+      const sentinel = infoBarSentinelRef.current;
+      if (!header || !sentinel) return;
+
+      const headerBottom = header.getBoundingClientRect().bottom;
+      const sentinelTop = sentinel.getBoundingClientRect().top;
+      setIsInfoBarPinned(sentinelTop <= headerBottom + 6);
+    };
+
+    updateInfoBarPosition();
+    window.addEventListener("scroll", updateInfoBarPosition, { passive: true });
+    window.addEventListener("resize", updateInfoBarPosition);
+    return () => {
+      window.removeEventListener("scroll", updateInfoBarPosition);
+      window.removeEventListener("resize", updateInfoBarPosition);
+    };
+  }, []);
 
   const handleSearch = (e:React.FormEvent) => {
     e.preventDefault();
@@ -626,7 +649,7 @@ export default function App() {
     <div className="min-h-screen flex flex-col bg-white text-[#222]" style={{fontFamily:"'Inter',sans-serif"}}>
 
       {/* ══════════ HEADER ══════════ */}
-      <header className="sticky top-0 z-40 bg-white">
+      <header ref={headerRef} className="sticky top-0 z-40 bg-white">
 
         {/* Single row: logo + search pill */}
         <div className="border-b border-[#ebebeb] px-6 md:px-10 flex items-center gap-5 py-3">
@@ -865,26 +888,35 @@ export default function App() {
       <main className="flex-1 px-6 md:px-10 py-8">
 
         {/* Sticky count + active filters */}
+        <div ref={infoBarSentinelRef} className="h-px" aria-hidden="true" />
         {(!loading && total > 0) || activeFilterItems.length > 0 ? (
-          <div className="sticky top-[73px] z-30 -mx-6 mb-6 border-b border-[#f1f1f1] bg-white/95 px-6 py-3 backdrop-blur md:-mx-10 md:px-10">
-            {!loading && total > 0 && (
-              <p className="text-[13px] text-[#717171] font-medium">
-                {total.toLocaleString("id-ID")} paket ditemukan{query ? ` · "${query}"` : ""}
-              </p>
-            )}
+          <div
+            className={`sticky top-[136px] z-30 -mx-6 mb-6 border-b border-[#f1f1f1] bg-white/95 px-6 py-3 backdrop-blur transition-all duration-200 ease-out md:-mx-10 md:px-10 md:top-[145px]
+              ${isInfoBarPinned ? "shadow-sm" : ""}`}
+          >
+            <div className={`flex gap-3 transition-all duration-200 ease-out ${isInfoBarPinned ? "flex-row items-center justify-between" : "flex-col items-start"}`}>
+              {!loading && total > 0 && (
+                <p className="shrink-0 text-left text-[13px] font-medium text-[#717171] transition-all duration-200 ease-out">
+                  {total.toLocaleString("id-ID")} paket ditemukan{query ? ` · "${query}"` : ""}
+                </p>
+              )}
 
-            {activeFilterItems.length > 0 && (
-              <div className="mt-2 flex max-h-24 flex-wrap gap-2 overflow-y-auto overscroll-contain pr-1">
-                {activeFilterItems.map(item => (
-                  <span key={item.key} className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-[#f7f7f7] border border-[#ebebeb] px-3 py-1.5 text-[12px] font-medium text-[#555]">
-                    <span className="max-w-[240px] truncate">{item.label}</span>
-                    <button type="button" onClick={item.onRemove} className="rounded-full text-[#999] hover:text-[#FF385C]" aria-label={`Hapus filter ${item.label}`}>
-                      <X size={13} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
+              {activeFilterItems.length > 0 && (
+                <div
+                  className={`flex gap-2 overflow-y-auto overscroll-contain pr-1 transition-all duration-200 ease-out
+                    ${isInfoBarPinned ? "ml-auto max-h-10 max-w-[62vw] flex-nowrap justify-end" : "max-h-24 flex-wrap"}`}
+                >
+                  {activeFilterItems.map(item => (
+                    <span key={item.key} className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-[#f7f7f7] border border-[#ebebeb] px-3 py-1.5 text-[12px] font-medium text-[#555]">
+                      <span className="max-w-[240px] truncate">{item.label}</span>
+                      <button type="button" onClick={item.onRemove} className="rounded-full text-[#999] hover:text-[#FF385C]" aria-label={`Hapus filter ${item.label}`}>
+                        <X size={13} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         ) : null}
 
