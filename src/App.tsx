@@ -42,6 +42,7 @@ interface CookForm {
   kode_paket: string;
   uraian_pengaduan: string;
   email_instansi_klpd: string;
+  email_instansi_klpd_input: string;
   sumber_pengaduan: string;
   no_surat_keluar_apip: string;
   files: File[];
@@ -55,6 +56,7 @@ const EMPTY_COOK_FORM: CookForm = {
   kode_paket: "",
   uraian_pengaduan: "",
   email_instansi_klpd: "",
+  email_instansi_klpd_input: "",
   sumber_pengaduan: "",
   no_surat_keluar_apip: "Email Sekretaris PPH",
   files: [],
@@ -69,9 +71,17 @@ const SUMBER_OPTIONS = [
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const parseEmailList = (value: string) =>
   value
-    .split(",")
+    .split(/[,\n;\s]+/)
     .map(email => email.trim())
     .filter(Boolean);
+
+const mergeEmailLists = (current: string, incoming: string[]) => {
+  const merged = [...parseEmailList(current)];
+  for (const email of incoming) {
+    if (!merged.some(existing => existing.toLowerCase() === email.toLowerCase())) merged.push(email);
+  }
+  return merged.join(",");
+};
 
 
 const A4 = { width: 595.28, height: 841.89 };
@@ -303,6 +313,54 @@ export default function App() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const commitInstansiEmailInput = () => {
+    const inputEmails = parseEmailList(cookForm.email_instansi_klpd_input);
+    if (!inputEmails.length) return true;
+
+    const invalid = inputEmails.find(email => !EMAIL_PATTERN.test(email));
+    if (invalid) {
+      showToast("error", `Format email tidak valid: ${invalid}`);
+      setShowOptional(true);
+      return false;
+    }
+
+    setCookForm(prev => ({
+      ...prev,
+      email_instansi_klpd: mergeEmailLists(prev.email_instansi_klpd, inputEmails),
+      email_instansi_klpd_input: "",
+    }));
+    return true;
+  };
+
+  const removeInstansiEmail = (email: string) => {
+    setCookForm(prev => ({
+      ...prev,
+      email_instansi_klpd: parseEmailList(prev.email_instansi_klpd)
+        .filter(item => item.toLowerCase() !== email.toLowerCase())
+        .join(","),
+    }));
+  };
+
+  const handleInstansiEmailChange = (value: string) => {
+    const shouldCommit = /[,;\n\s]$/.test(value);
+    const emails = parseEmailList(value);
+    if (shouldCommit && emails.length > 0) {
+      const invalid = emails.find(email => !EMAIL_PATTERN.test(email));
+      if (invalid) {
+        updateCookForm("email_instansi_klpd_input", value);
+        showToast("error", `Format email tidak valid: ${invalid}`);
+        return;
+      }
+      setCookForm(prev => ({
+        ...prev,
+        email_instansi_klpd: mergeEmailLists(prev.email_instansi_klpd, emails),
+        email_instansi_klpd_input: "",
+      }));
+      return;
+    }
+    updateCookForm("email_instansi_klpd_input", value);
+  };
+
   const resetCookForm = () => {
     setCookForm({...EMPTY_COOK_FORM});
     setShowCookForm(false);
@@ -322,7 +380,10 @@ export default function App() {
       return;
     }
 
-    const instansiEmails = parseEmailList(cookForm.email_instansi_klpd);
+    if (!commitInstansiEmailInput()) return;
+    const instansiEmails = parseEmailList(cookForm.email_instansi_klpd).concat(
+      parseEmailList(cookForm.email_instansi_klpd_input).filter(email => !parseEmailList(cookForm.email_instansi_klpd).some(existing => existing.toLowerCase() === email.toLowerCase()))
+    );
     if (instansiEmails.length === 0) {
       showToast("error", "Email Instansi KLPD wajib diisi");
       setShowOptional(true);
@@ -389,9 +450,15 @@ export default function App() {
         throw new Error(message);
       }
 
+      const sentEmails = typeof responseBody === "object" && responseBody && "sentTo" in responseBody && Array.isArray(responseBody.sentTo)
+        ? responseBody.sentTo.join(", ")
+        : instansiEmails.join(", ");
+      const fileName = typeof responseBody === "object" && responseBody && "file" in responseBody && responseBody.file && typeof responseBody.file === "object" && "name" in responseBody.file
+        ? String(responseBody.file.name)
+        : "file hasil olahan";
       const successMessage = typeof responseBody === "object" && responseBody && "message" in responseBody
-        ? String(responseBody.message)
-        : `Email paket #${pkg.id} berhasil dikirim`;
+        ? `${String(responseBody.message)} ke: ${sentEmails}. File: ${fileName}`
+        : `Email paket #${pkg.id} berhasil dikirim ke: ${sentEmails}`;
 
       showToast("success", successMessage);
       resetCookForm();
@@ -399,7 +466,9 @@ export default function App() {
       const isTimeout = err instanceof DOMException && err.name === "AbortError";
       showToast("error", isTimeout
         ? `Email paket #${pkg.id} belum memberi balasan setelah 2 menit`
-        : `Gagal mengirim email paket #${pkg.id}`
+        : err instanceof Error && err.message
+          ? `Gagal mengirim email paket #${pkg.id}: ${err.message}`
+          : `Gagal mengirim email paket #${pkg.id}`
       );
       console.error("Webhook error:", err);
     } finally {
@@ -825,14 +894,52 @@ export default function App() {
                     <div className="space-y-4 animate-in slide-in-from-top-2 fade-in duration-200">
                       <div>
                         <label className="text-[12px] font-semibold text-[#555] mb-1 block">Email Instansi KLPD <span className="text-red-500">*</span></label>
-                        <textarea
-                          value={cookForm.email_instansi_klpd}
-                          onChange={e=>updateCookForm("email_instansi_klpd", e.target.value)}
-                          placeholder="email1@instansi.go.id, email2@instansi.go.id"
-                          rows={2}
-                          className="w-full border border-[#ddd] rounded-xl px-4 py-2.5 text-[16px] sm:text-[14px] outline-none focus:border-[#FF385C] focus:ring-1 focus:ring-[#FF385C]/20 transition resize-none"
-                        />
-                        <p className="text-[11px] text-[#aaa] mt-1">Bisa isi banyak email, pisahkan dengan koma.</p>
+                        <div className="min-h-[48px] rounded-xl border border-[#ddd] bg-white px-2.5 py-2 focus-within:border-[#FF385C] focus-within:ring-1 focus-within:ring-[#FF385C]/20 transition">
+                          <div className="flex flex-wrap gap-2">
+                            {parseEmailList(cookForm.email_instansi_klpd).map(email => (
+                              <span key={email} className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-[#FF385C]/10 px-3 py-1.5 text-[13px] font-medium text-[#FF385C]">
+                                <span className="max-w-[210px] truncate">{email}</span>
+                                <button type="button" onClick={() => removeInstansiEmail(email)} className="text-[#FF385C] hover:text-[#d9284c]">×</button>
+                              </span>
+                            ))}
+                            <input
+                              type="text"
+                              value={cookForm.email_instansi_klpd_input}
+                              onChange={e=>handleInstansiEmailChange(e.target.value)}
+                              onBlur={()=>commitInstansiEmailInput()}
+                              onKeyDown={e=>{
+                                if (e.key === "Enter" || e.key === ",") {
+                                  e.preventDefault();
+                                  commitInstansiEmailInput();
+                                }
+                                if (e.key === "Backspace" && !cookForm.email_instansi_klpd_input) {
+                                  const emails = parseEmailList(cookForm.email_instansi_klpd);
+                                  if (emails.length) removeInstansiEmail(emails[emails.length - 1]);
+                                }
+                              }}
+                              onPaste={e=>{
+                                const text = e.clipboardData.getData("text");
+                                if (parseEmailList(text).length > 1) {
+                                  e.preventDefault();
+                                  const emails = parseEmailList(text);
+                                  const invalid = emails.find(email => !EMAIL_PATTERN.test(email));
+                                  if (invalid) {
+                                    showToast("error", `Format email tidak valid: ${invalid}`);
+                                    return;
+                                  }
+                                  setCookForm(prev => ({
+                                    ...prev,
+                                    email_instansi_klpd: mergeEmailLists(prev.email_instansi_klpd, emails),
+                                    email_instansi_klpd_input: "",
+                                  }));
+                                }
+                              }}
+                              placeholder={parseEmailList(cookForm.email_instansi_klpd).length ? "Tambah email..." : "email1@instansi.go.id, email2@instansi.go.id"}
+                              className="min-w-[180px] flex-1 border-0 bg-transparent px-1 py-1.5 text-[16px] sm:text-[14px] outline-none"
+                            />
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-[#aaa] mt-1">Tekan koma/Enter untuk membuat chip. Bisa paste banyak email sekaligus.</p>
                       </div>
                       <div>
                         <label className="text-[12px] font-semibold text-[#555] mb-1 block">Sumber Pengaduan</label>
