@@ -4,7 +4,7 @@ import {
   Loader2, Package, Boxes, Hammer, FileText, Briefcase,
   Coins, CheckCircle2, AlertCircle, Send,
 } from "lucide-react";
-import { Dialog, DialogContent, DialogClose } from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { PDFDocument } from "pdf-lib";
 import { KLPD_OPTIONS, LOKASI_OPTIONS } from "./data/filterOptions";
@@ -864,25 +864,29 @@ export default function App() {
       {/* ══════════ MAIN ══════════ */}
       <main className="flex-1 px-6 md:px-10 py-8">
 
-        {/* Count */}
-        {!loading && total > 0 && (
-          <p className="text-[13px] text-[#717171] mb-3 font-medium">
-            {total.toLocaleString("id-ID")} paket ditemukan{query ? ` · "${query}"` : ""}
-          </p>
-        )}
+        {/* Sticky count + active filters */}
+        {(!loading && total > 0) || activeFilterItems.length > 0 ? (
+          <div className="sticky top-[73px] z-30 -mx-6 mb-6 border-b border-[#f1f1f1] bg-white/95 px-6 py-3 backdrop-blur md:-mx-10 md:px-10">
+            {!loading && total > 0 && (
+              <p className="text-[13px] text-[#717171] font-medium">
+                {total.toLocaleString("id-ID")} paket ditemukan{query ? ` · "${query}"` : ""}
+              </p>
+            )}
 
-        {activeFilterItems.length > 0 && (
-          <div className="mb-6 flex flex-wrap gap-2">
-            {activeFilterItems.map(item => (
-              <span key={item.key} className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-[#f7f7f7] border border-[#ebebeb] px-3 py-1.5 text-[12px] font-medium text-[#555]">
-                <span className="max-w-[240px] truncate">{item.label}</span>
-                <button type="button" onClick={item.onRemove} className="rounded-full text-[#999] hover:text-[#FF385C]" aria-label={`Hapus filter ${item.label}`}>
-                  <X size={13} />
-                </button>
-              </span>
-            ))}
+            {activeFilterItems.length > 0 && (
+              <div className="mt-2 flex max-h-24 flex-wrap gap-2 overflow-y-auto overscroll-contain pr-1">
+                {activeFilterItems.map(item => (
+                  <span key={item.key} className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-[#f7f7f7] border border-[#ebebeb] px-3 py-1.5 text-[12px] font-medium text-[#555]">
+                    <span className="max-w-[240px] truncate">{item.label}</span>
+                    <button type="button" onClick={item.onRemove} className="rounded-full text-[#999] hover:text-[#FF385C]" aria-label={`Hapus filter ${item.label}`}>
+                      <X size={13} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+        ) : null}
 
         {/* Loading skeleton */}
         {loading && (
@@ -994,11 +998,6 @@ export default function App() {
         <DialogContent className="max-w-2xl w-full p-0 rounded-2xl overflow-hidden border-none shadow-2xl bg-white">
           {selected && (
             <>
-              {/* Close */}
-              <DialogClose className="absolute top-4 left-4 z-50 w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center hover:scale-105 transition">
-                <X size={15}/>
-              </DialogClose>
-
               {/* Banner */}
               <div className={`w-full h-44 bg-gradient-to-br ${CARD_COLORS[selected.jenisPengadaan]??"from-slate-100 to-slate-200"} flex items-end px-6 pb-4`}>
                 <span className={`text-[12px] font-semibold px-3 py-1 rounded-lg shadow-sm bg-white/80 backdrop-blur ${BADGE_COLORS[selected.jenisPengadaan]??""}`}>
@@ -1036,13 +1035,13 @@ export default function App() {
                     {([
                       { label: "ID Paket",           value: selected.id.toString() },
                       { label: "Nama Paket",          value: selected.paket },
-                      { label: "Jenis Pengadaan",     value: `${selected.jenisPengadaan} (ID: ${selected.idJenisPengadaan})` },
-                      { label: "Metode",              value: `${selected.metode} (ID: ${selected.idMetode})` },
-                      { label: "Instansi (KLDI)",     value: `${selected.kldi} — Kode: ${selected.idKldi}` },
+                      { label: "Jenis Pengadaan",     value: selected.jenisPengadaan },
+                      { label: "Metode",              value: selected.metode },
+                      { label: "Instansi (KLDI)",     value: selected.kldi },
                       { label: "Satuan Kerja",        value: selected.satuanKerja },
                       { label: "ID Satker",           value: selected.idSatker.toString() },
                       { label: "Lokasi",              value: selected.lokasi },
-                      { label: "Jadwal Pemilihan",    value: `${selected.pemilihan} (Bulan ke-${selected.idBulan})` },
+                      { label: "Jadwal Pemilihan",    value: selected.pemilihan },
                       { label: "Sumber Dana",         value: selected.sumberDana },
                       { label: "Produk Dalam Negeri", value: selected.isPDN ? "✅ Ya" : "❌ Tidak" },
                       { label: "Usaha Mikro & Kecil", value: selected.isUMK ? "✅ Ya" : "❌ Tidak" },
