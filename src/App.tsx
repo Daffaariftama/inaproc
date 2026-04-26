@@ -335,6 +335,7 @@ export default function App() {
   const headerRef = useRef<HTMLElement>(null);
   const infoBarSentinelRef = useRef<HTMLDivElement>(null);
   const [isInfoBarPinned, setIsInfoBarPinned] = useState(false);
+  const [infoBarTop, setInfoBarTop] = useState(0);
 
   const pages = Math.ceil(total / ITEMS);
   const klpdSuggestions = getSuggestions(KLPD_OPTIONS, klpdInput, draftFilters.kldi);
@@ -362,18 +363,22 @@ export default function App() {
       if (!header || !sentinel) return;
 
       const headerBottom = header.getBoundingClientRect().bottom;
-      const sentinelTop = sentinel.getBoundingClientRect().top;
-      setIsInfoBarPinned(sentinelTop <= headerBottom + 6);
+      const nextTop = Math.ceil(headerBottom);
+      setInfoBarTop(nextTop);
+      setIsInfoBarPinned(sentinel.getBoundingClientRect().top <= nextTop + 6);
     };
 
     updateInfoBarPosition();
+    const resizeObserver = new ResizeObserver(updateInfoBarPosition);
+    if (headerRef.current) resizeObserver.observe(headerRef.current);
     window.addEventListener("scroll", updateInfoBarPosition, { passive: true });
     window.addEventListener("resize", updateInfoBarPosition);
     return () => {
+      resizeObserver.disconnect();
       window.removeEventListener("scroll", updateInfoBarPosition);
       window.removeEventListener("resize", updateInfoBarPosition);
     };
-  }, []);
+  }, [showFilters]);
 
   const handleSearch = (e:React.FormEvent) => {
     e.preventDefault();
@@ -889,13 +894,14 @@ export default function App() {
 
         {/* Sticky count + active filters */}
         <div ref={infoBarSentinelRef} className="h-px" aria-hidden="true" />
-        {(!loading && total > 0) || activeFilterItems.length > 0 ? (
+        {(!loading || activeFilterItems.length > 0) ? (
           <div
-            className={`sticky top-[136px] z-30 -mx-6 mb-6 border-b border-[#f1f1f1] bg-white/95 px-6 py-3 backdrop-blur transition-all duration-200 ease-out md:-mx-10 md:px-10 md:top-[145px]
+            className={`sticky z-30 -mx-6 mb-6 border-b border-[#f1f1f1] bg-white/95 px-6 py-3 backdrop-blur transition-all duration-200 ease-out md:-mx-10 md:px-10
               ${isInfoBarPinned ? "shadow-sm" : ""}`}
+            style={{ top: infoBarTop }}
           >
-            <div className={`flex gap-3 transition-all duration-200 ease-out ${isInfoBarPinned ? "flex-row items-center justify-between" : "flex-col items-start"}`}>
-              {!loading && total > 0 && (
+            <div className={`flex gap-3 transition-all duration-200 ease-out ${isInfoBarPinned ? "flex-row items-center justify-between" : "flex-row flex-wrap items-center justify-between"}`}>
+              {!loading && (
                 <p className="shrink-0 text-left text-[13px] font-medium text-[#717171] transition-all duration-200 ease-out">
                   {total.toLocaleString("id-ID")} paket ditemukan{query ? ` · "${query}"` : ""}
                 </p>
@@ -904,7 +910,7 @@ export default function App() {
               {activeFilterItems.length > 0 && (
                 <div
                   className={`flex gap-2 overflow-y-auto overscroll-contain pr-1 transition-all duration-200 ease-out
-                    ${isInfoBarPinned ? "ml-auto max-h-10 max-w-[62vw] flex-nowrap justify-end" : "max-h-24 flex-wrap"}`}
+                    ${isInfoBarPinned ? "ml-auto max-h-10 max-w-[62vw] flex-nowrap justify-end" : "ml-auto max-h-24 flex-wrap justify-end"}`}
                 >
                   {activeFilterItems.map(item => (
                     <span key={item.key} className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-[#f7f7f7] border border-[#ebebeb] px-3 py-1.5 text-[12px] font-medium text-[#555]">
