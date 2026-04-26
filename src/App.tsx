@@ -217,20 +217,45 @@ export default function App() {
       formData.append("file", cookForm.file);
     }
 
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 120000);
+
     setSending(true);
-    showToast("loading", `Mengirim paket #${pkg.id}...`);
+    showToast("loading", `Mengirim paket #${pkg.id}. Menunggu email selesai dikirim...`);
     try {
       const res = await fetch(N8N_WEBHOOK_URL, {
         method: "POST",
         body: formData,
+        signal: controller.signal,
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      showToast("success", `Paket #${pkg.id} berhasil dikirim ke webhook`);
+
+      const contentType = res.headers.get("content-type") || "";
+      const responseBody = contentType.includes("application/json")
+        ? await res.json().catch(() => null)
+        : await res.text().catch(() => "");
+
+      if (!res.ok) {
+        const message = typeof responseBody === "object" && responseBody && "message" in responseBody
+          ? String(responseBody.message)
+          : `HTTP ${res.status}`;
+        throw new Error(message);
+      }
+
+      const successMessage = typeof responseBody === "object" && responseBody && "message" in responseBody
+        ? String(responseBody.message)
+        : `Email paket #${pkg.id} berhasil dikirim`;
+
+      showToast("success", successMessage);
       resetCookForm();
     } catch (err) {
-      showToast("error", `Gagal mengirim paket #${pkg.id}`);
+      const isTimeout = err instanceof DOMException && err.name === "AbortError";
+      showToast("error", isTimeout
+        ? `Email paket #${pkg.id} belum memberi balasan setelah 2 menit`
+        : `Gagal mengirim email paket #${pkg.id}`
+      );
       console.error("Webhook error:", err);
     } finally {
+      window.clearTimeout(timeout);
       setSending(false);
     }
   };
@@ -619,9 +644,9 @@ export default function App() {
                     {/* Submit */}
                     <button onClick={()=>sendToWebhook(selected)} disabled={sending} className="w-full bg-[#FF385C] hover:bg-[#e0334f] disabled:bg-[#ffb3c1] text-white text-[14px] font-semibold py-3.5 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm">
                       {sending ? (
-                        <><Loader2 size={16} className="animate-spin" /> Mengirim...</>
+                        <><Loader2 size={16} className="animate-spin" /> Menunggu email selesai...</>
                       ) : (
-                        <><Send size={16} /> Kirim ke Webhook</>
+                        <><Send size={16} /> Kirim Email</>
                       )}
                     </button>
                   </div>
