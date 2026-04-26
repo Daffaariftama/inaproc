@@ -145,7 +145,9 @@ export default function App() {
   const fetchData = useCallback(async(q:string,c:string,p:number,yr:string)=>{
     setLoading(true);
     try {
-      const res = await fetch(`${SIRUP_API_BASE_URL}/api/sirup/caripaketctr/search?${buildParams(q,c,p,yr)}`);
+      const res = await fetch(`${SIRUP_API_BASE_URL}/api/sirup/caripaketctr/search?${buildParams(q,c,p,yr)}`, {
+        headers: { "ngrok-skip-browser-warning": "true" },
+      });
       if(!res.ok) throw new Error();
       const json:ApiResponse = await res.json();
       setResults(json.data||[]); setTotal(json.recordsFiltered||0);
