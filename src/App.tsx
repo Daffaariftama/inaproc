@@ -719,7 +719,17 @@ export default function App() {
                       </div>
                       <div>
                         <label className="text-[12px] font-semibold text-[#555] mb-1 block">Tanggal Pengaduan <span className="text-red-500">*</span></label>
-                        <input type="date" value={cookForm.tanggal_pengaduan} onChange={e=>updateCookForm("tanggal_pengaduan", e.target.value)} className="date-input w-full max-w-full min-w-0 appearance-none border border-[#ddd] rounded-xl px-3 sm:px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C] focus:ring-1 focus:ring-[#FF385C]/20 transition" />
+                        <div className="relative w-full max-w-full min-w-0">
+                          {!cookForm.tanggal_pengaduan && (
+                            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[16px] text-[#aaa] sm:text-[14px]">Pilih tanggal</span>
+                          )}
+                          <input
+                            type="date"
+                            value={cookForm.tanggal_pengaduan}
+                            onChange={e=>updateCookForm("tanggal_pengaduan", e.target.value)}
+                            className={`date-input w-full max-w-full min-w-0 appearance-none border border-[#ddd] rounded-xl px-4 py-3 sm:py-2.5 text-[16px] sm:text-[14px] outline-none focus:border-[#FF385C] focus:ring-1 focus:ring-[#FF385C]/20 transition bg-white ${cookForm.tanggal_pengaduan ? "text-[#222]" : "text-transparent"}`}
+                          />
+                        </div>
                       </div>
                       <div>
                         <label className="text-[12px] font-semibold text-[#555] mb-1 block">Kode Tender <span className="text-red-500">*</span></label>
@@ -755,10 +765,10 @@ export default function App() {
                           <div className="space-y-3">
                             <ul className="space-y-2">
                               {cookForm.files.map((file, index) => (
-                                <li key={`${file.name}-${file.size}-${index}`} className="flex items-center gap-2 rounded-xl bg-white border border-[#eee] px-3 py-2">
+                                <li key={`${file.name}-${file.size}-${index}`} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-xl bg-white border border-[#eee] px-3 py-2 max-w-full overflow-hidden">
                                   <FileText size={15} className="shrink-0 text-[#FF385C]" />
-                                  <div className="min-w-0 flex-1">
-                                    <p className="truncate text-[13px] font-medium text-[#333]">{file.name}</p>
+                                  <div className="min-w-0 max-w-full overflow-hidden">
+                                    <p title={file.name} className="block w-full max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-medium text-[#333]">{file.name}</p>
                                     <p className="text-[11px] text-[#999]">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
                                   </div>
                                   <button
