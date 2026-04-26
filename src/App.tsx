@@ -99,7 +99,7 @@ const fmtFull = (n: number) =>
 const YEARS = ["2022","2023","2024","2025","2026"];
 
 const SIRUP_API_BASE_URL = (import.meta.env.VITE_SIRUP_API_BASE_URL || "https://obtuse-serve-steersman.ngrok-free.dev").replace(/\/$/, "");
-const N8N_WEBHOOK_URL = "https://obtuse-serve-steersman.ngrok-free.dev/webhook-test/9e05947a-5e2c-4b12-970a-689091127319";
+const N8N_WEBHOOK_URL = "https://obtuse-serve-steersman.ngrok-free.dev/webhook/9e05947a-5e2c-4b12-970a-689091127319";
 
 /* ─── API ─── */
 function buildParams(q: string, cat: string, p: number, year: string) {
