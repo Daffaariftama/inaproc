@@ -54,3 +54,12 @@
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
+
+/* Prevent iOS Safari from auto-zooming form fields and leaving the page zoomed in. */
+@media (max-width: 640px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}

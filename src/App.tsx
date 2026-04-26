@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { Dialog, DialogContent, DialogClose } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { PDFDocument } from "pdf-lib";
 
 /* ─── Types ─── */
 interface PaketData {
@@ -43,7 +44,7 @@ interface CookForm {
   email_instansi_klpd: string;
   sumber_pengaduan: string;
   no_surat_keluar_apip: string;
-  file: File | null;
+  files: File[];
 }
 
 const EMPTY_COOK_FORM: CookForm = {
@@ -56,7 +57,7 @@ const EMPTY_COOK_FORM: CookForm = {
   email_instansi_klpd: "",
   sumber_pengaduan: "",
   no_surat_keluar_apip: "Email Sekretaris PPH",
-  file: null,
+  files: [],
 };
 
 const SUMBER_OPTIONS = [
@@ -64,6 +65,97 @@ const SUMBER_OPTIONS = [
   "Sumber: E-Office 2026",
   "Sumber: SP4N LAPOR",
 ];
+
+const A4 = { width: 595.28, height: 841.89 };
+const PDF_MARGIN = 36;
+
+const readAsArrayBuffer = (file: File) =>
+  new Promise<ArrayBuffer>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as ArrayBuffer);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsArrayBuffer(file);
+  });
+
+const readAsDataUrl = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+
+const loadImage = (src: string) =>
+  new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Gagal membaca gambar"));
+    image.src = src;
+  });
+
+const dataUrlToBytes = (dataUrl: string) => {
+  const base64 = dataUrl.split(",")[1] || "";
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+};
+
+async function imageFileToJpegBytes(file: File) {
+  const image = await loadImage(await readAsDataUrl(file));
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth || image.width;
+  canvas.height = image.naturalHeight || image.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Browser tidak bisa memproses gambar");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(image, 0, 0);
+  return dataUrlToBytes(canvas.toDataURL("image/jpeg", 0.92));
+}
+
+async function buildAttachmentPdf(files: File[]) {
+  if (!files.length) return null;
+
+  const outputPdf = await PDFDocument.create();
+
+  for (const file of files) {
+    if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+      const sourcePdf = await PDFDocument.load(await readAsArrayBuffer(file));
+      const pages = await outputPdf.copyPages(sourcePdf, sourcePdf.getPageIndices());
+      pages.forEach(page => outputPdf.addPage(page));
+      continue;
+    }
+
+    if (file.type.startsWith("image/")) {
+      const image = await outputPdf.embedJpg(await imageFileToJpegBytes(file));
+      const page = outputPdf.addPage([A4.width, A4.height]);
+      const maxWidth = A4.width - PDF_MARGIN * 2;
+      const maxHeight = A4.height - PDF_MARGIN * 2;
+      const scale = Math.min(maxWidth / image.width, maxHeight / image.height);
+      const width = image.width * scale;
+      const height = image.height * scale;
+      page.drawImage(image, {
+        x: (A4.width - width) / 2,
+        y: (A4.height - height) / 2,
+        width,
+        height,
+      });
+      continue;
+    }
+
+    throw new Error(`Format file tidak didukung: ${file.name}`);
+  }
+
+  const bytes = await outputPdf.save();
+  const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+
+  return new File(
+    [arrayBuffer],
+    "Lampiran Pengaduan.pdf",
+    { type: "application/pdf" },
+  );
+}
 
 /* ─── Constants ─── */
 const ITEMS   = 20;
@@ -174,7 +266,7 @@ export default function App() {
     }
   };
 
-  const updateCookForm = (field: keyof CookForm, value: string | File | null) => {
+  const updateCookForm = <K extends keyof CookForm>(field: K, value: CookForm[K]) => {
     setCookForm(prev => ({ ...prev, [field]: value }));
   };
 
@@ -211,18 +303,28 @@ export default function App() {
       },
     };
 
-    const formData = new FormData();
-    formData.append("payload", JSON.stringify(payload));
-    if (cookForm.file) {
-      formData.append("file", cookForm.file);
-    }
-
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 120000);
 
     setSending(true);
-    showToast("loading", `Mengirim paket #${pkg.id}. Menunggu email selesai dikirim...`);
+    showToast("loading", cookForm.files.length > 0
+      ? `Memproses ${cookForm.files.length} lampiran dan menunggu email selesai...`
+      : `Mengirim paket #${pkg.id}. Menunggu email selesai dikirim...`
+    );
+
     try {
+      const formData = new FormData();
+      formData.append("payload", JSON.stringify({
+        ...payload,
+        attachmentCount: cookForm.files.length,
+        attachmentNames: cookForm.files.map(file => file.name),
+      }));
+
+      const attachmentPdf = await buildAttachmentPdf(cookForm.files);
+      if (attachmentPdf) {
+        formData.append("file", attachmentPdf);
+      }
+
       const res = await fetch(N8N_WEBHOOK_URL, {
         method: "POST",
         body: formData,
@@ -604,13 +706,24 @@ export default function App() {
                     </div>
 
                     <div>
-                      <label className="text-[12px] font-semibold text-[#555] mb-1 block">Lampiran (PDF/Foto)</label>
+                      <label className="text-[12px] font-semibold text-[#555] mb-1 block">Lampiran (PDF/Foto, bisa banyak)</label>
                       <input 
                         type="file" 
-                        accept=".pdf,image/*" 
-                        onChange={e => updateCookForm("file", e.target.files?.[0] || null)}
+                        multiple
+                        accept=".pdf,image/jpeg,image/png,image/webp,image/*" 
+                        onChange={e => updateCookForm("files", Array.from(e.target.files || []))}
                         className="w-full border border-[#ddd] rounded-xl px-4 py-2 text-[14px] outline-none focus:border-[#FF385C] focus:ring-1 focus:ring-[#FF385C]/20 transition file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[12px] file:font-semibold file:bg-[#FF385C]/10 file:text-[#FF385C] hover:file:bg-[#FF385C]/20 cursor-pointer" 
                       />
+                      {cookForm.files.length > 0 && (
+                        <ul className="mt-2 space-y-1 text-[12px] text-[#717171]">
+                          {cookForm.files.map((file, index) => (
+                            <li key={`${file.name}-${index}`} className="truncate">
+                              {index + 1}. {file.name}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      <p className="text-[11px] text-[#aaa] mt-1">Foto akan otomatis dijadikan PDF dan digabung sebelum dikirim.</p>
                     </div>
 
                     {/* Optional section toggle */}
