@@ -66,6 +66,14 @@ const SUMBER_OPTIONS = [
   "Sumber: SP4N LAPOR",
 ];
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const parseEmailList = (value: string) =>
+  value
+    .split(",")
+    .map(email => email.trim())
+    .filter(Boolean);
+
+
 const A4 = { width: 595.28, height: 841.89 };
 const PDF_MARGIN = 36;
 
@@ -309,8 +317,20 @@ export default function App() {
       return;
     }
     // validate email format
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cookForm.email_pengirim)) {
+    if (!EMAIL_PATTERN.test(cookForm.email_pengirim)) {
       showToast("error", "Format email pengirim tidak valid");
+      return;
+    }
+
+    const instansiEmails = parseEmailList(cookForm.email_instansi_klpd);
+    if (instansiEmails.length === 0) {
+      showToast("error", "Email Instansi KLPD wajib diisi");
+      setShowOptional(true);
+      return;
+    }
+    if (instansiEmails.some(email => !EMAIL_PATTERN.test(email))) {
+      showToast("error", "Format Email Instansi KLPD tidak valid. Pisahkan banyak email dengan koma.");
+      setShowOptional(true);
       return;
     }
 
@@ -323,7 +343,7 @@ export default function App() {
         tanggal_pengaduan: cookForm.tanggal_pengaduan,
         kode_paket: cookForm.kode_paket,
         uraian_pengaduan: cookForm.uraian_pengaduan,
-        ...(cookForm.email_instansi_klpd && { email_instansi_klpd: cookForm.email_instansi_klpd }),
+        email_instansi_klpd: instansiEmails.join(","),
         ...(cookForm.sumber_pengaduan && { sumber_pengaduan: cookForm.sumber_pengaduan }),
         no_surat_keluar_apip: cookForm.no_surat_keluar_apip,
       },
@@ -804,8 +824,15 @@ export default function App() {
                     {showOptional && (
                     <div className="space-y-4 animate-in slide-in-from-top-2 fade-in duration-200">
                       <div>
-                        <label className="text-[12px] font-semibold text-[#555] mb-1 block">Email Instansi KLPD</label>
-                        <input type="email" value={cookForm.email_instansi_klpd} onChange={e=>updateCookForm("email_instansi_klpd", e.target.value)} placeholder="email@instansi.go.id" className="w-full border border-[#ddd] rounded-xl px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C] focus:ring-1 focus:ring-[#FF385C]/20 transition" />
+                        <label className="text-[12px] font-semibold text-[#555] mb-1 block">Email Instansi KLPD <span className="text-red-500">*</span></label>
+                        <textarea
+                          value={cookForm.email_instansi_klpd}
+                          onChange={e=>updateCookForm("email_instansi_klpd", e.target.value)}
+                          placeholder="email1@instansi.go.id, email2@instansi.go.id"
+                          rows={2}
+                          className="w-full border border-[#ddd] rounded-xl px-4 py-2.5 text-[16px] sm:text-[14px] outline-none focus:border-[#FF385C] focus:ring-1 focus:ring-[#FF385C]/20 transition resize-none"
+                        />
+                        <p className="text-[11px] text-[#aaa] mt-1">Bisa isi banyak email, pisahkan dengan koma.</p>
                       </div>
                       <div>
                         <label className="text-[12px] font-semibold text-[#555] mb-1 block">Sumber Pengaduan</label>
