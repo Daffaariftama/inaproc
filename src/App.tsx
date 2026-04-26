@@ -263,21 +263,6 @@ const getOptionLabel = (options: {id:string; label:string}[], id: string) => opt
 const composeSearchQuery = (baseQuery: string, filters: SearchFilters) =>
   [baseQuery, filters.kldi.trim(), filters.lokasi.trim()].filter(Boolean).join(" ").trim();
 const hasAdvancedFilters = (filters: SearchFilters) => Object.values(filters).some(Boolean);
-const getActiveFilterLabels = (filters: SearchFilters, category: string, selectedYear: string, currentQuery: string) => {
-  const labels: string[] = [];
-  if (currentQuery) labels.push(`Pencarian: ${currentQuery}`);
-  if (selectedYear) labels.push(`Tahun: ${selectedYear}`);
-  if (category) labels.push(`Jenis: ${getOptionLabel(CATS, category)}`);
-  if (filters.metodePengadaan) labels.push(`Metode: ${getOptionLabel(METODE_OPTIONS, filters.metodePengadaan)}`);
-  if (filters.pdn) labels.push(filters.pdn === "true" ? "Produk Dalam Negeri" : "Produk Impor");
-  if (filters.ukm) labels.push(filters.ukm === "true" ? "Usaha Kecil/Koperasi" : "Bukan UKM/Koperasi");
-  if (filters.bulan) labels.push(`Bulan: ${getOptionLabel(BULAN_OPTIONS, filters.bulan)}`);
-  if (filters.minPagu || filters.maxPagu) labels.push(`Pagu: ${filters.minPagu ? fmtFull(Number(filters.minPagu)) : "Rp 0"} - ${filters.maxPagu ? fmtFull(Number(filters.maxPagu)) : "∞"}`);
-  if (filters.kldi.trim()) labels.push(`KLPD: ${filters.kldi.trim()}`);
-  if (filters.lokasi.trim()) labels.push(`Lokasi: ${filters.lokasi.trim()}`);
-  return labels;
-};
-
 const YEARS = ["2022","2023","2024","2025","2026"];
 
 const SIRUP_API_BASE_URL = (import.meta.env.VITE_SIRUP_API_BASE_URL || "https://obtuse-serve-steersman.ngrok-free.dev").replace(/\/$/, "");
@@ -310,6 +295,7 @@ export default function App() {
   const [cat,      setCat]      = useState("");
   const [year,     setYear]     = useState("2026");
   const [filters, setFilters] = useState<SearchFilters>({...EMPTY_FILTERS});
+  const [draftFilters, setDraftFilters] = useState<SearchFilters>({...EMPTY_FILTERS});
   const [showFilters, setShowFilters] = useState(false);
   const [results,  setResults]  = useState<PaketData[]>([]);
   const [loading,  setLoading]  = useState(false);
@@ -326,7 +312,6 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const pages = Math.ceil(total / ITEMS);
-  const activeFilterLabels = getActiveFilterLabels(filters, cat, year, query);
 
   const fetchData = useCallback(async(q:string,c:string,p:number,yr:string, flt:SearchFilters = EMPTY_FILTERS)=>{
     setLoading(true);
@@ -351,14 +336,40 @@ export default function App() {
   const handleCat = (c:string) => { setCat(c); setPage(0); fetchData(query,c,0,year,filters); };
   const handlePage = (p:number) => { setPage(p); fetchData(query,cat,p,year,filters); window.scrollTo({top:0,behavior:"smooth"}); };
   const handleYear = (yr:string) => { setYear(yr); setPage(0); fetchData(query,cat,0,yr,filters); };
-  const updateFilter = <K extends keyof SearchFilters>(field: K, value: SearchFilters[K]) => {
-    setFilters(prev => ({ ...prev, [field]: value }));
+  const openFilters = () => { setDraftFilters({...filters}); setShowFilters(true); };
+  const closeFilters = () => { setDraftFilters({...filters}); setShowFilters(false); };
+  const toggleFilters = () => {
+    if (showFilters) closeFilters();
+    else openFilters();
   };
-  const applyFilters = () => { setPage(0); fetchData(query,cat,0,year,filters); setShowFilters(false); };
+  const updateFilter = <K extends keyof SearchFilters>(field: K, value: SearchFilters[K]) => {
+    setDraftFilters(prev => ({ ...prev, [field]: value }));
+  };
+  const applyFilters = () => {
+    const next = {...draftFilters};
+    setFilters(next); setPage(0); fetchData(query,cat,0,year,next); setShowFilters(false);
+  };
   const clearFilters = () => {
     const empty = {...EMPTY_FILTERS};
-    setFilters(empty); setCat(""); setPage(0); fetchData(query,"",0,year,empty);
+    setFilters(empty); setDraftFilters(empty); setCat(""); setPage(0); fetchData(query,"",0,year,empty);
   };
+  const removeFilter = (field: keyof SearchFilters) => {
+    const next = { ...filters, [field]: "" };
+    setFilters(next); setDraftFilters(next); setPage(0); fetchData(query,cat,0,year,next);
+  };
+  const clearSearchFilter = () => { setInputKw(""); setInputLoc(""); setQuery(""); setPage(0); fetchData("",cat,0,year,filters); };
+  const clearCategoryFilter = () => { setCat(""); setPage(0); fetchData(query,"",0,year,filters); };
+  const activeFilterItems = [
+    ...(query ? [{ key: "query", label: `Pencarian: ${query}`, onRemove: clearSearchFilter }] : []),
+    ...(cat ? [{ key: "cat", label: `Jenis: ${getOptionLabel(CATS, cat)}`, onRemove: clearCategoryFilter }] : []),
+    ...(filters.metodePengadaan ? [{ key: "metodePengadaan", label: `Metode: ${getOptionLabel(METODE_OPTIONS, filters.metodePengadaan)}`, onRemove: () => removeFilter("metodePengadaan") }] : []),
+    ...(filters.pdn ? [{ key: "pdn", label: filters.pdn === "true" ? "Produk Dalam Negeri" : "Produk Impor", onRemove: () => removeFilter("pdn") }] : []),
+    ...(filters.ukm ? [{ key: "ukm", label: filters.ukm === "true" ? "Usaha Kecil/Koperasi" : "Bukan UKM/Koperasi", onRemove: () => removeFilter("ukm") }] : []),
+    ...(filters.bulan ? [{ key: "bulan", label: `Bulan: ${getOptionLabel(BULAN_OPTIONS, filters.bulan)}`, onRemove: () => removeFilter("bulan") }] : []),
+    ...(filters.minPagu || filters.maxPagu ? [{ key: "pagu", label: `Pagu: ${filters.minPagu ? fmtFull(Number(filters.minPagu)) : "Rp 0"} - ${filters.maxPagu ? fmtFull(Number(filters.maxPagu)) : "∞"}`, onRemove: () => { const next = { ...filters, minPagu: "", maxPagu: "" }; setFilters(next); setDraftFilters(next); setPage(0); fetchData(query,cat,0,year,next); } }] : []),
+    ...(filters.kldi.trim() ? [{ key: "kldi", label: `KLPD: ${filters.kldi.trim()}`, onRemove: () => removeFilter("kldi") }] : []),
+    ...(filters.lokasi.trim() ? [{ key: "lokasi", label: `Lokasi: ${filters.lokasi.trim()}`, onRemove: () => removeFilter("lokasi") }] : []),
+  ];
   const showToast = (type:"loading"|"success"|"error", message:string) => {
     if(toastTimer.current) clearTimeout(toastTimer.current);
     const id = Date.now();
@@ -571,7 +582,7 @@ export default function App() {
           {/* Logo */}
           <div
             className="flex items-center gap-1.5 cursor-pointer text-[#FF385C] shrink-0"
-            onClick={()=>{ const empty = {...EMPTY_FILTERS}; setInputKw(""); setInputLoc(""); setQuery(""); setCat(""); setYear("2026"); setFilters(empty); fetchData("","",0,"2026",empty); }}
+            onClick={()=>{ const empty = {...EMPTY_FILTERS}; setInputKw(""); setInputLoc(""); setQuery(""); setCat(""); setYear("2026"); setFilters(empty); setDraftFilters(empty); fetchData("","",0,"2026",empty); }}
           >
             <Search strokeWidth={3} size={24} />
             <div className="flex flex-col -space-y-1">
@@ -659,7 +670,7 @@ export default function App() {
 
           {/* Filters button */}
           <div className="shrink-0 flex items-center gap-3">
-            <button onClick={()=>setShowFilters(prev=>!prev)} className={`flex items-center gap-2 border rounded-xl px-4 py-2.5 text-[14px] font-medium hover:shadow-md transition-shadow whitespace-nowrap ${showFilters || hasAdvancedFilters(filters) ? "border-[#222] text-[#222]" : "border-[#ddd]"}`}>
+            <button onClick={toggleFilters} className={`flex items-center gap-2 border rounded-xl px-4 py-2.5 text-[14px] font-medium hover:shadow-md transition-shadow whitespace-nowrap ${showFilters || hasAdvancedFilters(filters) ? "border-[#222] text-[#222]" : "border-[#ddd]"}`}>
               <SlidersHorizontal size={16} /> Filters
               {hasAdvancedFilters(filters) && <span className="rounded-full bg-[#FF385C] px-1.5 py-0.5 text-[10px] font-bold text-white">{Object.values(filters).filter(Boolean).length}</span>}
             </button>
@@ -667,67 +678,78 @@ export default function App() {
         </div>
 
         {showFilters && (
-          <div className="border-t border-[#ebebeb] bg-white px-6 py-5 shadow-sm md:px-10">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-              <div>
-                <label className="mb-1 block text-[12px] font-semibold text-[#555]">KLPD</label>
-                <input value={filters.kldi} onChange={e=>updateFilter("kldi", e.target.value)} placeholder="Contoh: Kementerian Agama" className="w-full rounded-xl border border-[#ddd] px-3 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" />
-              </div>
-              <div>
-                <label className="mb-1 block text-[12px] font-semibold text-[#555]">Lokasi</label>
-                <input value={filters.lokasi} onChange={e=>updateFilter("lokasi", e.target.value)} placeholder="Contoh: DKI Jakarta" className="w-full rounded-xl border border-[#ddd] px-3 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" />
-              </div>
-              <div>
-                <label className="mb-1 block text-[12px] font-semibold text-[#555]">Metode Pengadaan</label>
-                <select value={filters.metodePengadaan} onChange={e=>updateFilter("metodePengadaan", e.target.value)} className="w-full rounded-xl border border-[#ddd] bg-white px-3 py-2.5 text-[14px] outline-none focus:border-[#FF385C]">
-                  <option value="">Semua metode</option>
-                  {METODE_OPTIONS.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-[12px] font-semibold text-[#555]">Bulan Pemilihan</label>
-                <select value={filters.bulan} onChange={e=>updateFilter("bulan", e.target.value)} className="w-full rounded-xl border border-[#ddd] bg-white px-3 py-2.5 text-[14px] outline-none focus:border-[#FF385C]">
-                  <option value="">Semua bulan</option>
-                  {BULAN_OPTIONS.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-[12px] font-semibold text-[#555]">Produk Dalam Negeri</label>
-                <select value={filters.pdn} onChange={e=>updateFilter("pdn", e.target.value)} className="w-full rounded-xl border border-[#ddd] bg-white px-3 py-2.5 text-[14px] outline-none focus:border-[#FF385C]">
-                  <option value="">Semua</option>
-                  <option value="true">Produk Dalam Negeri</option>
-                  <option value="false">Produk Impor</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-[12px] font-semibold text-[#555]">Usaha Kecil/Koperasi</label>
-                <select value={filters.ukm} onChange={e=>updateFilter("ukm", e.target.value)} className="w-full rounded-xl border border-[#ddd] bg-white px-3 py-2.5 text-[14px] outline-none focus:border-[#FF385C]">
-                  <option value="">Semua</option>
-                  <option value="true">Usaha Kecil/Koperasi</option>
-                  <option value="false">Bukan UKM/Koperasi</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-[12px] font-semibold text-[#555]">Min Pagu</label>
-                <input inputMode="numeric" value={compactNumber(filters.minPagu)} onChange={e=>updateFilter("minPagu", onlyDigits(e.target.value))} placeholder="Rp" className="w-full rounded-xl border border-[#ddd] px-3 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" />
-              </div>
-              <div>
-                <label className="mb-1 block text-[12px] font-semibold text-[#555]">Max Pagu</label>
-                <input inputMode="numeric" value={compactNumber(filters.maxPagu)} onChange={e=>updateFilter("maxPagu", onlyDigits(e.target.value))} placeholder="Rp" className="w-full rounded-xl border border-[#ddd] px-3 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" />
-              </div>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {PAGU_PRESETS.map(preset => (
-                <button key={preset.label} type="button" onClick={()=>setFilters(prev=>({...prev, minPagu:preset.min, maxPagu:preset.max}))} className="rounded-full border border-[#ddd] px-3 py-1.5 text-[12px] font-medium text-[#555] hover:border-[#FF385C] hover:text-[#FF385C]">
-                  {preset.label}
+          <div className="fixed inset-0 z-50 bg-black/30 md:static md:bg-transparent" onClick={closeFilters}>
+            <div className="absolute inset-x-3 top-20 max-h-[calc(100vh-6rem)] overflow-y-auto overscroll-contain rounded-2xl border border-[#ebebeb] bg-white px-4 py-4 shadow-2xl md:static md:max-h-[70vh] md:rounded-none md:border-x-0 md:border-b md:border-t md:px-10 md:py-5 md:shadow-sm" onClick={e=>e.stopPropagation()}>
+              <div className="mb-4 flex items-center justify-between md:hidden">
+                <div>
+                  <div className="text-[15px] font-bold text-[#222]">Filter Pencarian</div>
+                  <div className="text-[12px] text-[#717171]">Perubahan muncul setelah diterapkan</div>
+                </div>
+                <button type="button" onClick={closeFilters} className="rounded-full border border-[#ddd] p-2 text-[#555]">
+                  <X size={16} />
                 </button>
-              ))}
-            </div>
-            <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-              <button type="button" onClick={clearFilters} className="text-[13px] font-semibold text-[#717171] hover:text-[#222]">Hapus semua filter</button>
-              <div className="flex gap-2">
-                <button type="button" onClick={()=>setShowFilters(false)} className="rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] font-semibold text-[#555] hover:bg-[#f7f7f7]">Tutup</button>
-                <button type="button" onClick={applyFilters} className="rounded-xl bg-[#FF385C] px-5 py-2.5 text-[14px] font-semibold text-white hover:bg-[#e0334f]">Terapkan Filter</button>
+              </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                <div>
+                  <label className="mb-1 block text-[12px] font-semibold text-[#555]">KLPD</label>
+                  <input value={draftFilters.kldi} onChange={e=>updateFilter("kldi", e.target.value)} placeholder="Contoh: Kementerian Agama" className="w-full rounded-xl border border-[#ddd] px-3 py-2.5 text-[16px] outline-none focus:border-[#FF385C] md:text-[14px]" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[12px] font-semibold text-[#555]">Lokasi</label>
+                  <input value={draftFilters.lokasi} onChange={e=>updateFilter("lokasi", e.target.value)} placeholder="Contoh: DKI Jakarta" className="w-full rounded-xl border border-[#ddd] px-3 py-2.5 text-[16px] outline-none focus:border-[#FF385C] md:text-[14px]" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[12px] font-semibold text-[#555]">Metode Pengadaan</label>
+                  <select value={draftFilters.metodePengadaan} onChange={e=>updateFilter("metodePengadaan", e.target.value)} className="w-full rounded-xl border border-[#ddd] bg-white px-3 py-2.5 text-[16px] outline-none focus:border-[#FF385C] md:text-[14px]">
+                    <option value="">Semua metode</option>
+                    {METODE_OPTIONS.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-[12px] font-semibold text-[#555]">Bulan Pemilihan</label>
+                  <select value={draftFilters.bulan} onChange={e=>updateFilter("bulan", e.target.value)} className="w-full rounded-xl border border-[#ddd] bg-white px-3 py-2.5 text-[16px] outline-none focus:border-[#FF385C] md:text-[14px]">
+                    <option value="">Semua bulan</option>
+                    {BULAN_OPTIONS.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-[12px] font-semibold text-[#555]">Produk Dalam Negeri</label>
+                  <select value={draftFilters.pdn} onChange={e=>updateFilter("pdn", e.target.value)} className="w-full rounded-xl border border-[#ddd] bg-white px-3 py-2.5 text-[16px] outline-none focus:border-[#FF385C] md:text-[14px]">
+                    <option value="">Semua</option>
+                    <option value="true">Produk Dalam Negeri</option>
+                    <option value="false">Produk Impor</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-[12px] font-semibold text-[#555]">Usaha Kecil/Koperasi</label>
+                  <select value={draftFilters.ukm} onChange={e=>updateFilter("ukm", e.target.value)} className="w-full rounded-xl border border-[#ddd] bg-white px-3 py-2.5 text-[16px] outline-none focus:border-[#FF385C] md:text-[14px]">
+                    <option value="">Semua</option>
+                    <option value="true">Usaha Kecil/Koperasi</option>
+                    <option value="false">Bukan UKM/Koperasi</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-[12px] font-semibold text-[#555]">Min Pagu</label>
+                  <input inputMode="numeric" value={compactNumber(draftFilters.minPagu)} onChange={e=>updateFilter("minPagu", onlyDigits(e.target.value))} placeholder="Rp" className="w-full rounded-xl border border-[#ddd] px-3 py-2.5 text-[16px] outline-none focus:border-[#FF385C] md:text-[14px]" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[12px] font-semibold text-[#555]">Max Pagu</label>
+                  <input inputMode="numeric" value={compactNumber(draftFilters.maxPagu)} onChange={e=>updateFilter("maxPagu", onlyDigits(e.target.value))} placeholder="Rp" className="w-full rounded-xl border border-[#ddd] px-3 py-2.5 text-[16px] outline-none focus:border-[#FF385C] md:text-[14px]" />
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {PAGU_PRESETS.map(preset => (
+                  <button key={preset.label} type="button" onClick={()=>setDraftFilters(prev=>({...prev, minPagu:preset.min, maxPagu:preset.max}))} className="rounded-full border border-[#ddd] px-3 py-1.5 text-[12px] font-medium text-[#555] hover:border-[#FF385C] hover:text-[#FF385C]">
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+              <div className="sticky bottom-0 -mx-4 mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#ebebeb] bg-white px-4 py-3 md:-mx-10 md:px-10">
+                <button type="button" onClick={clearFilters} className="text-[13px] font-semibold text-[#717171] hover:text-[#222]">Hapus semua filter</button>
+                <div className="flex gap-2">
+                  <button type="button" onClick={closeFilters} className="rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] font-semibold text-[#555] hover:bg-[#f7f7f7]">Tutup</button>
+                  <button type="button" onClick={applyFilters} className="rounded-xl bg-[#FF385C] px-5 py-2.5 text-[14px] font-semibold text-white hover:bg-[#e0334f]">Terapkan Filter</button>
+                </div>
               </div>
             </div>
           </div>
@@ -744,11 +766,14 @@ export default function App() {
           </p>
         )}
 
-        {activeFilterLabels.length > 0 && (
+        {activeFilterItems.length > 0 && (
           <div className="mb-6 flex flex-wrap gap-2">
-            {activeFilterLabels.map(label => (
-              <span key={label} className="inline-flex items-center rounded-full bg-[#f7f7f7] border border-[#ebebeb] px-3 py-1.5 text-[12px] font-medium text-[#555]">
-                {label}
+            {activeFilterItems.map(item => (
+              <span key={item.key} className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-[#f7f7f7] border border-[#ebebeb] px-3 py-1.5 text-[12px] font-medium text-[#555]">
+                <span className="max-w-[240px] truncate">{item.label}</span>
+                <button type="button" onClick={item.onRemove} className="rounded-full text-[#999] hover:text-[#FF385C]" aria-label={`Hapus filter ${item.label}`}>
+                  <X size={13} />
+                </button>
               </span>
             ))}
           </div>
