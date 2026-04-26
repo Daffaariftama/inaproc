@@ -1214,7 +1214,7 @@ export default function App() {
                     {/* Optional section toggle */}
                     <button type="button" onClick={()=>setShowOptional(!showOptional)} className="flex items-center gap-2 text-[13px] font-semibold text-[#717171] hover:text-[#222] transition w-full">
                       <ChevronDown size={16} className={`transition-transform duration-200 ${showOptional ? "rotate-180" : ""}`} />
-                      Data Opsional
+                      Data Tambahan
                       <div className="flex-1 border-t border-dashed border-[#ddd] ml-2" />
                     </button>
 
