@@ -231,6 +231,7 @@ export default function App() {
   const [cookForm, setCookForm] = useState<CookForm>({...EMPTY_COOK_FORM});
   const toastTimer = useRef<ReturnType<typeof setTimeout>|null>(null);
   const cookFormRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const pages = Math.ceil(total / ITEMS);
 
@@ -270,10 +271,35 @@ export default function App() {
     setCookForm(prev => ({ ...prev, [field]: value }));
   };
 
+  const addCookFiles = (files: File[]) => {
+    if (!files.length) return;
+    setCookForm(prev => ({
+      ...prev,
+      files: [
+        ...prev.files,
+        ...files.filter(file => !prev.files.some(existing =>
+          existing.name === file.name &&
+          existing.size === file.size &&
+          existing.lastModified === file.lastModified
+        )),
+      ],
+    }));
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const removeCookFile = (index: number) => {
+    setCookForm(prev => ({
+      ...prev,
+      files: prev.files.filter((_, fileIndex) => fileIndex !== index),
+    }));
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const resetCookForm = () => {
     setCookForm({...EMPTY_COOK_FORM});
     setShowCookForm(false);
     setShowOptional(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const sendToWebhook = async (pkg: PaketData) => {
@@ -693,7 +719,7 @@ export default function App() {
                       </div>
                       <div>
                         <label className="text-[12px] font-semibold text-[#555] mb-1 block">Tanggal Pengaduan <span className="text-red-500">*</span></label>
-                        <input type="date" value={cookForm.tanggal_pengaduan} onChange={e=>updateCookForm("tanggal_pengaduan", e.target.value)} className="w-full border border-[#ddd] rounded-xl px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C] focus:ring-1 focus:ring-[#FF385C]/20 transition" />
+                        <input type="date" value={cookForm.tanggal_pengaduan} onChange={e=>updateCookForm("tanggal_pengaduan", e.target.value)} className="date-input w-full max-w-full min-w-0 appearance-none border border-[#ddd] rounded-xl px-3 sm:px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C] focus:ring-1 focus:ring-[#FF385C]/20 transition" />
                       </div>
                       <div>
                         <label className="text-[12px] font-semibold text-[#555] mb-1 block">Kode Tender <span className="text-red-500">*</span></label>
@@ -708,21 +734,53 @@ export default function App() {
                     <div>
                       <label className="text-[12px] font-semibold text-[#555] mb-1 block">Lampiran (PDF/Foto, bisa banyak)</label>
                       <input 
+                        ref={fileInputRef}
                         type="file" 
                         multiple
                         accept=".pdf,image/jpeg,image/png,image/webp,image/*" 
-                        onChange={e => updateCookForm("files", Array.from(e.target.files || []))}
-                        className="w-full border border-[#ddd] rounded-xl px-4 py-2 text-[14px] outline-none focus:border-[#FF385C] focus:ring-1 focus:ring-[#FF385C]/20 transition file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[12px] file:font-semibold file:bg-[#FF385C]/10 file:text-[#FF385C] hover:file:bg-[#FF385C]/20 cursor-pointer" 
+                        onChange={e => addCookFiles(Array.from(e.target.files || []))}
+                        className="sr-only"
                       />
-                      {cookForm.files.length > 0 && (
-                        <ul className="mt-2 space-y-1 text-[12px] text-[#717171]">
-                          {cookForm.files.map((file, index) => (
-                            <li key={`${file.name}-${index}`} className="truncate">
-                              {index + 1}. {file.name}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
+
+                      <div className="rounded-2xl border border-dashed border-[#ddd] bg-[#fafafa] p-3 sm:p-4">
+                        {cookForm.files.length === 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="w-full rounded-xl bg-white border border-[#ddd] px-4 py-3 text-[14px] font-semibold text-[#FF385C] hover:bg-[#FF385C]/5 transition"
+                          >
+                            Pilih PDF atau Foto
+                          </button>
+                        ) : (
+                          <div className="space-y-3">
+                            <ul className="space-y-2">
+                              {cookForm.files.map((file, index) => (
+                                <li key={`${file.name}-${file.size}-${index}`} className="flex items-center gap-2 rounded-xl bg-white border border-[#eee] px-3 py-2">
+                                  <FileText size={15} className="shrink-0 text-[#FF385C]" />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="truncate text-[13px] font-medium text-[#333]">{file.name}</p>
+                                    <p className="text-[11px] text-[#999]">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeCookFile(index)}
+                                    className="shrink-0 rounded-full border border-red-100 bg-red-50 px-3 py-1.5 text-[12px] font-semibold text-red-600 hover:bg-red-100 transition"
+                                  >
+                                    Hapus
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                            <button
+                              type="button"
+                              onClick={() => fileInputRef.current?.click()}
+                              className="w-full rounded-xl border border-[#FF385C]/25 bg-[#FF385C]/5 px-4 py-2.5 text-[13px] font-semibold text-[#FF385C] hover:bg-[#FF385C]/10 transition"
+                            >
+                              + Tambahkan file
+                            </button>
+                          </div>
+                        )}
+                      </div>
                       <p className="text-[11px] text-[#aaa] mt-1">Foto akan otomatis dijadikan PDF dan digabung sebelum dikirim.</p>
                     </div>
 

@@ -63,3 +63,18 @@
     font-size: 16px !important;
   }
 }
+
+/* Keep native date inputs inside small mobile screens. */
+.date-input {
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+.date-input::-webkit-date-and-time-value {
+  text-align: left;
+}
+@media (max-width: 640px) {
+  .date-input {
+    padding-left: 12px !important;
+    padding-right: 8px !important;
+  }
+}
