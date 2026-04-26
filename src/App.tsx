@@ -7,6 +7,7 @@ import {
 import { Dialog, DialogContent, DialogClose } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { PDFDocument } from "pdf-lib";
+import { KLPD_OPTIONS, LOKASI_OPTIONS } from "./data/filterOptions";
 
 /* ─── Types ─── */
 interface PaketData {
@@ -94,6 +95,24 @@ const mergeEmailLists = (current: string, incoming: string[]) => {
   return merged.join(",");
 };
 
+const parseMultiValue = (value: string) =>
+  value.split(",").map(item => item.trim()).filter(Boolean);
+const joinMultiValue = (items: string[]) => items.join(", ");
+const addMultiValue = (current: string, option: string) => {
+  const values = parseMultiValue(current);
+  if (!values.some(value => value.toLowerCase() === option.toLowerCase())) values.push(option);
+  return joinMultiValue(values);
+};
+const removeMultiValue = (current: string, option: string) =>
+  joinMultiValue(parseMultiValue(current).filter(value => value.toLowerCase() !== option.toLowerCase()));
+const getSuggestions = (options: readonly string[], input: string, selected: string, limit = 8) => {
+  const query = input.trim().toLowerCase();
+  if (!query) return [];
+  const picked = new Set(parseMultiValue(selected).map(item => item.toLowerCase()));
+  return options
+    .filter(option => !picked.has(option.toLowerCase()) && option.toLowerCase().includes(query))
+    .slice(0, limit);
+};
 
 const A4 = { width: 595.28, height: 841.89 };
 const PDF_MARGIN = 36;
@@ -261,7 +280,7 @@ const onlyDigits = (value: string) => value.replace(/\D/g, "");
 const compactNumber = (value: string) => value ? Number(value).toLocaleString("id-ID") : "";
 const getOptionLabel = (options: {id:string; label:string}[], id: string) => options.find(option => option.id === id)?.label || id;
 const composeSearchQuery = (baseQuery: string, filters: SearchFilters) =>
-  [baseQuery, filters.kldi.trim(), filters.lokasi.trim()].filter(Boolean).join(" ").trim();
+  [baseQuery, ...parseMultiValue(filters.kldi), ...parseMultiValue(filters.lokasi)].filter(Boolean).join(" ").trim();
 const hasAdvancedFilters = (filters: SearchFilters) => Object.values(filters).some(Boolean);
 const YEARS = ["2022","2023","2024","2025","2026"];
 
@@ -297,6 +316,9 @@ export default function App() {
   const [filters, setFilters] = useState<SearchFilters>({...EMPTY_FILTERS});
   const [draftFilters, setDraftFilters] = useState<SearchFilters>({...EMPTY_FILTERS});
   const [showFilters, setShowFilters] = useState(false);
+  const [klpdInput, setKlpdInput] = useState("");
+  const [lokasiInput, setLokasiInput] = useState("");
+  const [focusedSuggest, setFocusedSuggest] = useState<"kldi"|"lokasi"|null>(null);
   const [results,  setResults]  = useState<PaketData[]>([]);
   const [loading,  setLoading]  = useState(false);
   const [total,    setTotal]    = useState(0);
@@ -312,6 +334,8 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const pages = Math.ceil(total / ITEMS);
+  const klpdSuggestions = getSuggestions(KLPD_OPTIONS, klpdInput, draftFilters.kldi);
+  const lokasiSuggestions = getSuggestions(LOKASI_OPTIONS, lokasiInput, draftFilters.lokasi);
 
   const fetchData = useCallback(async(q:string,c:string,p:number,yr:string, flt:SearchFilters = EMPTY_FILTERS)=>{
     setLoading(true);
@@ -336,8 +360,8 @@ export default function App() {
   const handleCat = (c:string) => { setCat(c); setPage(0); fetchData(query,c,0,year,filters); };
   const handlePage = (p:number) => { setPage(p); fetchData(query,cat,p,year,filters); window.scrollTo({top:0,behavior:"smooth"}); };
   const handleYear = (yr:string) => { setYear(yr); setPage(0); fetchData(query,cat,0,yr,filters); };
-  const openFilters = () => { setDraftFilters({...filters}); setShowFilters(true); };
-  const closeFilters = () => { setDraftFilters({...filters}); setShowFilters(false); };
+  const openFilters = () => { setDraftFilters({...filters}); setKlpdInput(""); setLokasiInput(""); setFocusedSuggest(null); setShowFilters(true); };
+  const closeFilters = () => { setDraftFilters({...filters}); setKlpdInput(""); setLokasiInput(""); setFocusedSuggest(null); setShowFilters(false); };
   const toggleFilters = () => {
     if (showFilters) closeFilters();
     else openFilters();
@@ -347,11 +371,11 @@ export default function App() {
   };
   const applyFilters = () => {
     const next = {...draftFilters};
-    setFilters(next); setPage(0); fetchData(query,cat,0,year,next); setShowFilters(false);
+    setFilters(next); setKlpdInput(""); setLokasiInput(""); setFocusedSuggest(null); setPage(0); fetchData(query,cat,0,year,next); setShowFilters(false);
   };
   const clearFilters = () => {
     const empty = {...EMPTY_FILTERS};
-    setFilters(empty); setDraftFilters(empty); setCat(""); setPage(0); fetchData(query,"",0,year,empty);
+    setFilters(empty); setDraftFilters(empty); setKlpdInput(""); setLokasiInput(""); setFocusedSuggest(null); setCat(""); setPage(0); fetchData(query,"",0,year,empty);
   };
   const removeFilter = (field: keyof SearchFilters) => {
     const next = { ...filters, [field]: "" };
@@ -367,9 +391,36 @@ export default function App() {
     ...(filters.ukm ? [{ key: "ukm", label: filters.ukm === "true" ? "Usaha Kecil/Koperasi" : "Bukan UKM/Koperasi", onRemove: () => removeFilter("ukm") }] : []),
     ...(filters.bulan ? [{ key: "bulan", label: `Bulan: ${getOptionLabel(BULAN_OPTIONS, filters.bulan)}`, onRemove: () => removeFilter("bulan") }] : []),
     ...(filters.minPagu || filters.maxPagu ? [{ key: "pagu", label: `Pagu: ${filters.minPagu ? fmtFull(Number(filters.minPagu)) : "Rp 0"} - ${filters.maxPagu ? fmtFull(Number(filters.maxPagu)) : "∞"}`, onRemove: () => { const next = { ...filters, minPagu: "", maxPagu: "" }; setFilters(next); setDraftFilters(next); setPage(0); fetchData(query,cat,0,year,next); } }] : []),
-    ...(filters.kldi.trim() ? [{ key: "kldi", label: `KLPD: ${filters.kldi.trim()}`, onRemove: () => removeFilter("kldi") }] : []),
-    ...(filters.lokasi.trim() ? [{ key: "lokasi", label: `Lokasi: ${filters.lokasi.trim()}`, onRemove: () => removeFilter("lokasi") }] : []),
+    ...parseMultiValue(filters.kldi).map(option => ({
+      key: `kldi-${option}`,
+      label: `KLPD: ${option}`,
+      onRemove: () => {
+        const next = { ...filters, kldi: removeMultiValue(filters.kldi, option) };
+        setFilters(next); setDraftFilters(next); setPage(0); fetchData(query,cat,0,year,next);
+      },
+    })),
+    ...parseMultiValue(filters.lokasi).map(option => ({
+      key: `lokasi-${option}`,
+      label: `Lokasi: ${option}`,
+      onRemove: () => {
+        const next = { ...filters, lokasi: removeMultiValue(filters.lokasi, option) };
+        setFilters(next); setDraftFilters(next); setPage(0); fetchData(query,cat,0,year,next);
+      },
+    })),
   ];
+  const selectKlpdSuggestion = (option: string) => {
+    setDraftFilters(prev => ({ ...prev, kldi: addMultiValue(prev.kldi, option) }));
+    setKlpdInput("");
+    setFocusedSuggest("kldi");
+  };
+  const selectLokasiSuggestion = (option: string) => {
+    setDraftFilters(prev => ({ ...prev, lokasi: addMultiValue(prev.lokasi, option) }));
+    setLokasiInput("");
+    setFocusedSuggest("lokasi");
+  };
+  const removeDraftKlpd = (option: string) => setDraftFilters(prev => ({ ...prev, kldi: removeMultiValue(prev.kldi, option) }));
+  const removeDraftLokasi = (option: string) => setDraftFilters(prev => ({ ...prev, lokasi: removeMultiValue(prev.lokasi, option) }));
+
   const showToast = (type:"loading"|"success"|"error", message:string) => {
     if(toastTimer.current) clearTimeout(toastTimer.current);
     const id = Date.now();
@@ -690,13 +741,67 @@ export default function App() {
                 </button>
               </div>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                <div>
+                <div className="relative">
                   <label className="mb-1 block text-[12px] font-semibold text-[#555]">KLPD</label>
-                  <input value={draftFilters.kldi} onChange={e=>updateFilter("kldi", e.target.value)} placeholder="Contoh: Kementerian Agama" className="w-full rounded-xl border border-[#ddd] px-3 py-2.5 text-[16px] outline-none focus:border-[#FF385C] md:text-[14px]" />
+                  <div className="min-h-[46px] rounded-xl border border-[#ddd] bg-white px-2.5 py-2 focus-within:border-[#FF385C]">
+                    <div className="flex flex-wrap gap-2">
+                      {parseMultiValue(draftFilters.kldi).map(option => (
+                        <span key={option} className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-[#FF385C]/10 px-2.5 py-1 text-[12px] font-medium text-[#FF385C]">
+                          <span className="max-w-[180px] truncate">{option}</span>
+                          <button type="button" onClick={()=>removeDraftKlpd(option)} className="hover:text-[#d9284c]">×</button>
+                        </span>
+                      ))}
+                      <input
+                        value={klpdInput}
+                        onChange={e=>setKlpdInput(e.target.value)}
+                        onFocus={()=>setFocusedSuggest("kldi")}
+                        onKeyDown={e=>{
+                          if (e.key === "Enter" && klpdSuggestions[0]) { e.preventDefault(); selectKlpdSuggestion(klpdSuggestions[0]); }
+                          if (e.key === "Backspace" && !klpdInput) { const values = parseMultiValue(draftFilters.kldi); if (values.length) removeDraftKlpd(values[values.length - 1]); }
+                        }}
+                        placeholder={parseMultiValue(draftFilters.kldi).length ? "Tambah KLPD..." : "Ketik KLPD..."}
+                        className="min-w-[160px] flex-1 border-0 bg-transparent px-1 py-1 text-[16px] outline-none md:text-[14px]"
+                      />
+                    </div>
+                  </div>
+                  {focusedSuggest === "kldi" && klpdSuggestions.length > 0 && (
+                    <div className="absolute z-[60] mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-[#ddd] bg-white py-1 shadow-xl">
+                      {klpdSuggestions.map(option => (
+                        <button key={option} type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>selectKlpdSuggestion(option)} className="block w-full px-3 py-2 text-left text-[13px] hover:bg-[#f7f7f7]">{option}</button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div>
+                <div className="relative">
                   <label className="mb-1 block text-[12px] font-semibold text-[#555]">Lokasi</label>
-                  <input value={draftFilters.lokasi} onChange={e=>updateFilter("lokasi", e.target.value)} placeholder="Contoh: DKI Jakarta" className="w-full rounded-xl border border-[#ddd] px-3 py-2.5 text-[16px] outline-none focus:border-[#FF385C] md:text-[14px]" />
+                  <div className="min-h-[46px] rounded-xl border border-[#ddd] bg-white px-2.5 py-2 focus-within:border-[#FF385C]">
+                    <div className="flex flex-wrap gap-2">
+                      {parseMultiValue(draftFilters.lokasi).map(option => (
+                        <span key={option} className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-[#FF385C]/10 px-2.5 py-1 text-[12px] font-medium text-[#FF385C]">
+                          <span className="max-w-[180px] truncate">{option}</span>
+                          <button type="button" onClick={()=>removeDraftLokasi(option)} className="hover:text-[#d9284c]">×</button>
+                        </span>
+                      ))}
+                      <input
+                        value={lokasiInput}
+                        onChange={e=>setLokasiInput(e.target.value)}
+                        onFocus={()=>setFocusedSuggest("lokasi")}
+                        onKeyDown={e=>{
+                          if (e.key === "Enter" && lokasiSuggestions[0]) { e.preventDefault(); selectLokasiSuggestion(lokasiSuggestions[0]); }
+                          if (e.key === "Backspace" && !lokasiInput) { const values = parseMultiValue(draftFilters.lokasi); if (values.length) removeDraftLokasi(values[values.length - 1]); }
+                        }}
+                        placeholder={parseMultiValue(draftFilters.lokasi).length ? "Tambah lokasi..." : "Ketik lokasi..."}
+                        className="min-w-[160px] flex-1 border-0 bg-transparent px-1 py-1 text-[16px] outline-none md:text-[14px]"
+                      />
+                    </div>
+                  </div>
+                  {focusedSuggest === "lokasi" && lokasiSuggestions.length > 0 && (
+                    <div className="absolute z-[60] mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-[#ddd] bg-white py-1 shadow-xl">
+                      {lokasiSuggestions.map(option => (
+                        <button key={option} type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>selectLokasiSuggestion(option)} className="block w-full px-3 py-2 text-left text-[13px] hover:bg-[#f7f7f7]">{option}</button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="mb-1 block text-[12px] font-semibold text-[#555]">Metode Pengadaan</label>
