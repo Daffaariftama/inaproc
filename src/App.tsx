@@ -98,6 +98,7 @@ const fmtFull = (n: number) =>
 
 const YEARS = ["2022","2023","2024","2025","2026"];
 
+const SIRUP_API_BASE_URL = (import.meta.env.VITE_SIRUP_API_BASE_URL || "https://obtuse-serve-steersman.ngrok-free.dev").replace(/\/$/, "");
 const N8N_WEBHOOK_URL = "https://obtuse-serve-steersman.ngrok-free.dev/webhook-test/9e05947a-5e2c-4b12-970a-689091127319";
 
 /* ─── API ─── */
@@ -144,7 +145,7 @@ export default function App() {
   const fetchData = useCallback(async(q:string,c:string,p:number,yr:string)=>{
     setLoading(true);
     try {
-      const res = await fetch(`/api/sirup/caripaketctr/search?${buildParams(q,c,p,yr)}`);
+      const res = await fetch(`${SIRUP_API_BASE_URL}/api/sirup/caripaketctr/search?${buildParams(q,c,p,yr)}`);
       if(!res.ok) throw new Error();
       const json:ApiResponse = await res.json();
       setResults(json.data||[]); setTotal(json.recordsFiltered||0);
