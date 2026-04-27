@@ -53,6 +53,7 @@ interface CookForm {
   tanggal_pengaduan: string;
   kode_paket: string;
   uraian_pengaduan: string;
+  substansi_pengaduan: string;
   email_instansi_klpd: string;
   email_instansi_klpd_input: string;
   sumber_pengaduan: string;
@@ -67,6 +68,7 @@ const EMPTY_COOK_FORM: CookForm = {
   tanggal_pengaduan: "",
   kode_paket: "",
   uraian_pengaduan: "",
+  substansi_pengaduan: "",
   email_instansi_klpd: "",
   email_instansi_klpd_input: "",
   sumber_pengaduan: "",
@@ -593,7 +595,7 @@ export default function App() {
 
   const sendToWebhook = async (pkg: PaketData) => {
     // validate required fields
-    if (!cookForm.id_pengaduan || !cookForm.pengirim || !cookForm.email_pengirim || !cookForm.tanggal_pengaduan || !cookForm.kode_paket || !cookForm.uraian_pengaduan) {
+    if (!cookForm.id_pengaduan || !cookForm.pengirim || !cookForm.email_pengirim || !cookForm.tanggal_pengaduan || !cookForm.kode_paket || !cookForm.uraian_pengaduan || !cookForm.substansi_pengaduan) {
       showToast("error", "Harap isi semua field yang wajib");
       return;
     }
@@ -627,6 +629,10 @@ export default function App() {
         tanggal_pengaduan: cookForm.tanggal_pengaduan,
         kode_paket: cookForm.kode_paket,
         uraian_pengaduan: cookForm.uraian_pengaduan,
+        substansi_pengaduan: cookForm.substansi_pengaduan,
+        substansi_aduan: cookForm.substansi_pengaduan,
+        "SUBTANSI ADUAN": cookForm.substansi_pengaduan,
+        "Substansi Pengaduan": cookForm.substansi_pengaduan,
         email_instansi_klpd: instansiEmails.join(","),
         ...(cookForm.sumber_pengaduan && { sumber_pengaduan: cookForm.sumber_pengaduan }),
         no_surat_keluar_apip: cookForm.no_surat_keluar_apip,
@@ -714,10 +720,6 @@ export default function App() {
             onClick={()=>{ const empty = {...EMPTY_FILTERS}; setInputKw(""); setInputLoc(""); setQuery(""); setCat(""); setYear("2026"); setDraftYear("2026"); setFilters(empty); setDraftFilters(empty); fetchData("","",0,"2026",empty); }}
           >
             <img src="/lkpp-logo.jpg" alt="LKPP" className="h-8 w-auto rounded-sm object-contain md:h-11" />
-            <div className="hidden min-w-0 flex-col md:flex">
-              <span className="text-[10px] font-semibold leading-tight text-[#717171]">by</span>
-              <span className="max-w-[210px] truncate text-[11px] font-bold leading-tight text-[#222]">Direktorat Penanganan Permasalahan Hukum</span>
-            </div>
           </div>
 
           {/* Search pill */}
@@ -1212,6 +1214,10 @@ export default function App() {
                     <div>
                       <label className="text-[12px] font-semibold text-[#555] mb-1 block">Uraian Pengaduan <span className="text-red-500">*</span></label>
                       <textarea value={cookForm.uraian_pengaduan} onChange={e=>updateCookForm("uraian_pengaduan", e.target.value)} placeholder="Tuliskan uraian eskalasi..." rows={3} className="w-full border border-[#ddd] rounded-xl px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C] focus:ring-1 focus:ring-[#FF385C]/20 transition resize-none" />
+                    </div>
+                    <div>
+                      <label className="text-[12px] font-semibold text-[#555] mb-1 block">Substansi Pengaduan <span className="text-red-500">*</span></label>
+                      <textarea value={cookForm.substansi_pengaduan} onChange={e=>updateCookForm("substansi_pengaduan", e.target.value)} placeholder="Tuliskan substansi pengaduan..." rows={3} className="w-full border border-[#ddd] rounded-xl px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C] focus:ring-1 focus:ring-[#FF385C]/20 transition resize-none" />
                     </div>
 
                     <div>
