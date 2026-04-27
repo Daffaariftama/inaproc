@@ -293,7 +293,7 @@ const composeSearchQuery = (baseQuery: string, filters: SearchFilters) =>
 const hasAdvancedFilters = (filters: SearchFilters) => Object.values(filters).some(Boolean);
 const ALL_YEARS = "all";
 const YEARS = ["2022","2023","2024","2025","2026"];
-const YEAR_OPTIONS = [{ id: ALL_YEARS, label: "Semua Tahun" }, ...YEARS.map(year => ({ id: year, label: year }))];
+const YEAR_OPTIONS = [...YEARS.map(year => ({ id: year, label: year })), { id: ALL_YEARS, label: "Semua Tahun" }];
 const ALL_YEAR_FETCH_ORDER = [...YEARS].sort((a, b) => Number(b) - Number(a));
 
 const SIRUP_API_BASE_URL = (import.meta.env.VITE_SIRUP_API_BASE_URL || "https://obtuse-serve-steersman.ngrok-free.dev").replace(/\/$/, "");
@@ -325,6 +325,7 @@ export default function App() {
   const [query,    setQuery]    = useState("");
   const [cat,      setCat]      = useState("");
   const [year,     setYear]     = useState("2026");
+  const [draftYear, setDraftYear] = useState("2026");
   const [filters, setFilters] = useState<SearchFilters>({...EMPTY_FILTERS});
   const [draftFilters, setDraftFilters] = useState<SearchFilters>({...EMPTY_FILTERS});
   const [showFilters, setShowFilters] = useState(false);
@@ -436,9 +437,9 @@ export default function App() {
   };
   const handleCat = (c:string) => { setCat(c); setPage(0); fetchData(query,c,0,year,filters); };
   const handlePage = (p:number) => { setPage(p); fetchData(query,cat,p,year,filters); window.scrollTo({top:0,behavior:"smooth"}); };
-  const handleYear = (yr:string) => { setYear(yr); setPage(0); fetchData(query,cat,0,yr,filters); };
-  const openFilters = () => { setDraftFilters({...filters}); setKlpdInput(""); setLokasiInput(""); setFocusedSuggest(null); setShowFilters(true); };
-  const closeFilters = () => { setDraftFilters({...filters}); setKlpdInput(""); setLokasiInput(""); setFocusedSuggest(null); setShowFilters(false); };
+  const handleYear = (yr:string) => { setYear(yr); setDraftYear(yr); setPage(0); fetchData(query,cat,0,yr,filters); };
+  const openFilters = () => { setDraftYear(year); setDraftFilters({...filters}); setKlpdInput(""); setLokasiInput(""); setFocusedSuggest(null); setShowFilters(true); };
+  const closeFilters = () => { setDraftYear(year); setDraftFilters({...filters}); setKlpdInput(""); setLokasiInput(""); setFocusedSuggest(null); setShowFilters(false); };
   const toggleFilters = () => {
     if (showFilters) closeFilters();
     else openFilters();
@@ -448,7 +449,7 @@ export default function App() {
   };
   const applyFilters = () => {
     const next = {...draftFilters};
-    setFilters(next); setKlpdInput(""); setLokasiInput(""); setFocusedSuggest(null); setPage(0); fetchData(query,cat,0,year,next); setShowFilters(false);
+    setYear(draftYear); setFilters(next); setKlpdInput(""); setLokasiInput(""); setFocusedSuggest(null); setPage(0); fetchData(query,cat,0,draftYear,next); setShowFilters(false);
   };
   const clearFilters = () => {
     const empty = {...EMPTY_FILTERS};
@@ -710,12 +711,12 @@ export default function App() {
           {/* Logo */}
           <div
             className="flex items-center gap-1.5 cursor-pointer text-[#FF385C] shrink-0"
-            onClick={()=>{ const empty = {...EMPTY_FILTERS}; setInputKw(""); setInputLoc(""); setQuery(""); setCat(""); setYear("2026"); setFilters(empty); setDraftFilters(empty); fetchData("","",0,"2026",empty); }}
+            onClick={()=>{ const empty = {...EMPTY_FILTERS}; setInputKw(""); setInputLoc(""); setQuery(""); setCat(""); setYear("2026"); setDraftYear("2026"); setFilters(empty); setDraftFilters(empty); fetchData("","",0,"2026",empty); }}
           >
-            <Search strokeWidth={3} size={24} />
-            <div className="flex flex-col -space-y-1">
-              <span className="hidden md:inline font-bold text-[20px] tracking-tight leading-tight">inaproc</span>
-              <span className="hidden md:inline text-[8px] font-medium text-[#717171] ml-0.5 tracking-wide">by dave</span>
+            <img src="/lkpp-logo.jpg" alt="LKPP" className="h-8 w-auto rounded-sm object-contain md:h-11" />
+            <div className="hidden min-w-0 flex-col md:flex">
+              <span className="text-[10px] font-semibold leading-tight text-[#717171]">by</span>
+              <span className="max-w-[210px] truncate text-[11px] font-bold leading-tight text-[#222]">Direktorat Penanganan Permasalahan Hukum</span>
             </div>
           </div>
 
@@ -818,6 +819,12 @@ export default function App() {
                 </button>
               </div>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                <div className="md:hidden">
+                  <label className="mb-1 block text-[12px] font-semibold text-[#555]">Tahun</label>
+                  <select value={draftYear} onChange={e=>setDraftYear(e.target.value)} className="w-full rounded-xl border border-[#ddd] bg-white px-3 py-2.5 text-[16px] outline-none focus:border-[#FF385C]">
+                    {YEAR_OPTIONS.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
+                  </select>
+                </div>
                 <div className="relative">
                   <label className="mb-1 block text-[12px] font-semibold text-[#555]">KLPD</label>
                   <div className="min-h-[46px] rounded-xl border border-[#ddd] bg-white px-2.5 py-2 focus-within:border-[#FF385C]">
@@ -1155,14 +1162,14 @@ export default function App() {
                       onClick={()=>{ setShowCookForm(true); setTimeout(()=>cookFormRef.current?.scrollIntoView({behavior:"smooth",block:"start"}), 100); }}
                       className="bg-[#FF385C] hover:bg-[#e0334f] text-white text-[14px] font-semibold px-6 py-3 rounded-xl transition-colors flex items-center gap-2"
                     >
-                      <Send size={16} /> Cook
+                      <Send size={16} /> Eskalasi
                     </button>
                   </div>
                   ) : (
                   <div ref={cookFormRef} className="space-y-5">
                     <div className="flex items-center justify-between">
                       <h3 className="text-[16px] font-bold text-[#222] flex items-center gap-2">
-                        <Send size={16} className="text-[#FF385C]" /> Form Pengaduan
+                        <Send size={16} className="text-[#FF385C]" /> Form Eskalasi
                       </h3>
                       <button onClick={()=>setShowCookForm(false)} className="text-[13px] text-[#717171] hover:text-[#222] transition">
                         Batal
@@ -1204,7 +1211,7 @@ export default function App() {
                     </div>
                     <div>
                       <label className="text-[12px] font-semibold text-[#555] mb-1 block">Uraian Pengaduan <span className="text-red-500">*</span></label>
-                      <textarea value={cookForm.uraian_pengaduan} onChange={e=>updateCookForm("uraian_pengaduan", e.target.value)} placeholder="Tuliskan uraian pengaduan..." rows={3} className="w-full border border-[#ddd] rounded-xl px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C] focus:ring-1 focus:ring-[#FF385C]/20 transition resize-none" />
+                      <textarea value={cookForm.uraian_pengaduan} onChange={e=>updateCookForm("uraian_pengaduan", e.target.value)} placeholder="Tuliskan uraian eskalasi..." rows={3} className="w-full border border-[#ddd] rounded-xl px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C] focus:ring-1 focus:ring-[#FF385C]/20 transition resize-none" />
                     </div>
 
                     <div>
