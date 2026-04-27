@@ -268,13 +268,22 @@ const BADGE_COLORS: Record<string,string> = {
 };
 
 /* ─── Helpers ─── */
-const fmt = (n: number) =>
-  n >= 1e9 ? `Rp ${(n/1e9).toFixed(1)} M`
+const toSafeNumber = (value: unknown) => {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? n : 0;
+};
+const toDisplayText = (value: unknown, fallback = "—") =>
+  value === null || value === undefined || value === "" ? fallback : String(value);
+
+const fmt = (value: unknown) => {
+  const n = toSafeNumber(value);
+  return n >= 1e9 ? `Rp ${(n/1e9).toFixed(1)} M`
   : n >= 1e6 ? `Rp ${(n/1e6).toFixed(1)} jt`
   : new Intl.NumberFormat("id-ID",{style:"currency",currency:"IDR",maximumFractionDigits:0}).format(n);
+};
 
-const fmtFull = (n: number) =>
-  new Intl.NumberFormat("id-ID",{style:"currency",currency:"IDR",maximumFractionDigits:0}).format(n);
+const fmtFull = (value: unknown) =>
+  new Intl.NumberFormat("id-ID",{style:"currency",currency:"IDR",maximumFractionDigits:0}).format(toSafeNumber(value));
 
 const onlyDigits = (value: string) => value.replace(/\D/g, "");
 const compactNumber = (value: string) => value ? Number(value).toLocaleString("id-ID") : "";
@@ -282,19 +291,22 @@ const getOptionLabel = (options: {id:string; label:string}[], id: string) => opt
 const composeSearchQuery = (baseQuery: string, filters: SearchFilters) =>
   [baseQuery, ...parseMultiValue(filters.kldi), ...parseMultiValue(filters.lokasi)].filter(Boolean).join(" ").trim();
 const hasAdvancedFilters = (filters: SearchFilters) => Object.values(filters).some(Boolean);
+const ALL_YEARS = "all";
 const YEARS = ["2022","2023","2024","2025","2026"];
+const YEAR_OPTIONS = [{ id: ALL_YEARS, label: "Semua Tahun" }, ...YEARS.map(year => ({ id: year, label: year }))];
+const ALL_YEAR_FETCH_ORDER = [...YEARS].sort((a, b) => Number(b) - Number(a));
 
 const SIRUP_API_BASE_URL = (import.meta.env.VITE_SIRUP_API_BASE_URL || "https://obtuse-serve-steersman.ngrok-free.dev").replace(/\/$/, "");
 const N8N_WEBHOOK_URL = "https://obtuse-serve-steersman.ngrok-free.dev/webhook/9e05947a-5e2c-4b12-970a-689091127319";
 
 /* ─── API ─── */
-function buildParams(q: string, cat: string, p: number, year: string, filters: SearchFilters = EMPTY_FILTERS) {
+function buildParams(q: string, cat: string, p: number, year: string, filters: SearchFilters = EMPTY_FILTERS, startOverride?: number, lengthOverride?: number) {
   const cols = ["","paket","pagu","jenisPengadaan","isPDN","isUMK","metode","pemilihan","kldi","satuanKerja","lokasi","id"];
   const ps: Record<string,string> = {
     tahunAnggaran: year, jenisPengadaan:cat, metodePengadaan:filters.metodePengadaan,
     minPagu:filters.minPagu,maxPagu:filters.maxPagu,bulan:filters.bulan,lokasi:"",kldi:"",pdn:filters.pdn,ukm:filters.ukm,draw:"1",
     "order[0][column]":"5","order[0][dir]":"DESC",
-    start:(p*ITEMS).toString(), length:ITEMS.toString(),
+    start:(startOverride ?? p*ITEMS).toString(), length:(lengthOverride ?? ITEMS).toString(),
     "search[value]":composeSearchQuery(q, filters),"search[regex]":"false",_:Date.now().toString(),
   };
   cols.forEach((d,i)=>{
@@ -344,12 +356,49 @@ export default function App() {
   const fetchData = useCallback(async(q:string,c:string,p:number,yr:string, flt:SearchFilters = EMPTY_FILTERS)=>{
     setLoading(true);
     try {
-      const res = await fetch(`${SIRUP_API_BASE_URL}/api/sirup/caripaketctr/search?${buildParams(q,c,p,yr,flt)}`, {
-        headers: { "ngrok-skip-browser-warning": "true" },
-      });
-      if(!res.ok) throw new Error();
-      const json:ApiResponse = await res.json();
-      setResults(json.data||[]); setTotal(json.recordsFiltered||0);
+      const fetchYearData = async (targetYear: string, start = p * ITEMS, length = ITEMS) => {
+        const res = await fetch(`${SIRUP_API_BASE_URL}/api/sirup/caripaketctr/search?${buildParams(q,c,p,targetYear,flt,start,length)}`, {
+          headers: { "ngrok-skip-browser-warning": "true" },
+        });
+        if(!res.ok) throw new Error();
+        return await res.json() as ApiResponse;
+      };
+
+      if (yr !== ALL_YEARS) {
+        const json = await fetchYearData(yr);
+        setResults(json.data||[]); setTotal(json.recordsFiltered||0);
+        return;
+      }
+
+      const summaries = await Promise.all(
+        ALL_YEAR_FETCH_ORDER.map(async targetYear => ({
+          year: targetYear,
+          ...(await fetchYearData(targetYear, 0, 0)),
+        }))
+      );
+      const totalFiltered = summaries.reduce((sum, item) => sum + (item.recordsFiltered || 0), 0);
+      let offset = p * ITEMS;
+      let remaining = ITEMS;
+      const combined: PaketData[] = [];
+
+      for (const summary of summaries) {
+        const count = summary.recordsFiltered || 0;
+        if (offset >= count) {
+          offset -= count;
+          continue;
+        }
+
+        const take = Math.min(remaining, count - offset);
+        if (take > 0) {
+          const json = await fetchYearData(summary.year, offset, take);
+          combined.push(...(json.data || []));
+          remaining -= take;
+        }
+        offset = 0;
+        if (remaining <= 0) break;
+      }
+
+      setResults(combined); setTotal(totalFiltered);
     } catch { setResults([]); setTotal(0); }
     finally { setLoading(false); }
   },[]);
@@ -696,8 +745,8 @@ export default function App() {
                   onChange={e => handleYear(e.target.value)}
                   className="bg-transparent outline-none text-[14px] text-[#555] font-medium cursor-pointer appearance-none w-full"
                 >
-                  {YEARS.map(yr => (
-                    <option key={yr} value={yr}>{yr}</option>
+                  {YEAR_OPTIONS.map(option => (
+                    <option key={option.id} value={option.id}>{option.label}</option>
                   ))}
                 </select>
               </div>
@@ -1063,7 +1112,7 @@ export default function App() {
                   <div className={`rounded-2xl bg-gradient-to-br ${CARD_COLORS[selected.jenisPengadaan]??"from-slate-50 to-slate-100"} p-5`}>
                     <p className="text-[12px] font-semibold text-[#555] uppercase tracking-wider mb-1 flex items-center gap-1.5"><Coins size={13}/>Pagu Anggaran</p>
                     <p className="text-[28px] font-extrabold text-[#222] tracking-tight">{fmtFull(selected.pagu)}</p>
-                    <p className="text-[13px] text-[#666] mt-0.5">Sumber Dana: <span className="font-semibold">{selected.sumberDana}</span></p>
+                    <p className="text-[13px] text-[#666] mt-0.5">Sumber Dana: <span className="font-semibold">{toDisplayText(selected.sumberDana)}</span></p>
                   </div>
 
                   <hr className="border-[#ebebeb]"/>
@@ -1071,20 +1120,20 @@ export default function App() {
                   {/* Detail rows — semua field */}
                   <div className="space-y-0 divide-y divide-[#f5f5f5]">
                     {([
-                      { label: "ID Paket",           value: selected.id.toString() },
-                      { label: "Nama Paket",          value: selected.paket },
-                      { label: "Jenis Pengadaan",     value: selected.jenisPengadaan },
-                      { label: "Metode",              value: selected.metode },
-                      { label: "Instansi (KLDI)",     value: selected.kldi },
-                      { label: "Satuan Kerja",        value: selected.satuanKerja },
-                      { label: "ID Satker",           value: selected.idSatker.toString() },
-                      { label: "Lokasi",              value: selected.lokasi },
-                      { label: "Jadwal Pemilihan",    value: selected.pemilihan },
-                      { label: "Sumber Dana",         value: selected.sumberDana },
+                      { label: "ID Paket",           value: toDisplayText(selected.id) },
+                      { label: "Nama Paket",          value: toDisplayText(selected.paket) },
+                      { label: "Jenis Pengadaan",     value: toDisplayText(selected.jenisPengadaan) },
+                      { label: "Metode",              value: toDisplayText(selected.metode) },
+                      { label: "Instansi (KLDI)",     value: toDisplayText(selected.kldi) },
+                      { label: "Satuan Kerja",        value: toDisplayText(selected.satuanKerja) },
+                      { label: "ID Satker",           value: toDisplayText(selected.idSatker) },
+                      { label: "Lokasi",              value: toDisplayText(selected.lokasi) },
+                      { label: "Jadwal Pemilihan",    value: toDisplayText(selected.pemilihan) },
+                      { label: "Sumber Dana",         value: toDisplayText(selected.sumberDana) },
                       { label: "Produk Dalam Negeri", value: selected.isPDN ? "✅ Ya" : "❌ Tidak" },
                       { label: "Usaha Mikro & Kecil", value: selected.isUMK ? "✅ Ya" : "❌ Tidak" },
                       { label: "PDS",                 value: selected.pds ? "✅ Ya" : "❌ Tidak" },
-                      { label: "ID Referensi",        value: selected.id_referensi.toString() },
+                      { label: "ID Referensi",        value: toDisplayText(selected.id_referensi) },
                     ] as { label: string; value: string }[]).map(({ label, value }) => (
                       <div key={label} className="flex justify-between items-start gap-4 py-3">
                         <span className="text-[13px] text-[#717171] shrink-0 w-[150px]">{label}</span>
