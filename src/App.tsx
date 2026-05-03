@@ -875,14 +875,7 @@ export default function App() {
                 <label className="text-[12px] font-semibold text-[#555] mb-1 block">Jadwal Pemilihan</label>
                 <input value={manualPaketForm.jadwal_pemilihan} onChange={e=>updateManualPaketForm("jadwal_pemilihan", e.target.value)} placeholder="Contoh: Mei 2026" className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" />
               </div>
-              <div>
-                <label className="text-[12px] font-semibold text-[#555] mb-1 block">Sumber Dana</label>
-                <input value={manualPaketForm.sumber_dana} onChange={e=>updateManualPaketForm("sumber_dana", e.target.value)} placeholder="APBN/APBD/dll" className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" />
-              </div>
-              <div className="md:col-span-2 flex flex-wrap gap-3">
-                <label className="flex items-center gap-2 rounded-xl border border-[#ddd] px-4 py-2.5 text-[13px] font-semibold cursor-pointer"><input type="checkbox" checked={manualPaketForm.isPDN} onChange={e=>updateManualPaketForm("isPDN", e.target.checked)} className="accent-[#FF385C]" /> PDN</label>
-                <label className="flex items-center gap-2 rounded-xl border border-[#ddd] px-4 py-2.5 text-[13px] font-semibold cursor-pointer"><input type="checkbox" checked={manualPaketForm.isUMK} onChange={e=>updateManualPaketForm("isUMK", e.target.checked)} className="accent-[#FF385C]" /> UMK</label>
-              </div>
+
             </div>
           </section>
 
@@ -906,7 +899,7 @@ export default function App() {
               <div className="md:col-span-2"><label className="text-[12px] font-semibold text-[#555] mb-1 block">Uraian Pengaduan <span className="text-red-500">*</span></label><textarea value={cookForm.uraian_pengaduan} onChange={e=>updateCookForm("uraian_pengaduan", e.target.value)} rows={3} className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C] resize-none" /></div>
               <div className="md:col-span-2"><label className="text-[12px] font-semibold text-[#555] mb-1 block">Substansi Pengaduan <span className="text-red-500">*</span></label><textarea value={cookForm.substansi_pengaduan} onChange={e=>updateCookForm("substansi_pengaduan", e.target.value)} rows={3} className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C] resize-none" /></div>
               <div><label className="text-[12px] font-semibold text-[#555] mb-1 block">Sumber Pengaduan</label><select value={cookForm.sumber_pengaduan} onChange={e=>updateCookForm("sumber_pengaduan", e.target.value)} className="w-full rounded-xl border border-[#ddd] bg-white px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]"><option value="">— Pilih sumber —</option>{SUMBER_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
-              <label className="flex items-start gap-3 rounded-xl border border-[#ddd] bg-white px-4 py-3 cursor-pointer hover:border-[#FF385C]/50"><input type="checkbox" checked={cookForm.lampiran_ii} onChange={e=>updateCookForm("lampiran_ii", e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#FF385C]" /><span><span className="block text-[13px] font-semibold">Apakah Lampiran II?</span><span className="block text-[11px] text-[#aaa] mt-0.5">Jika dicentang, n8n akan melampirkan lampiran ii.pdf.</span></span></label>
+              <label className="flex items-start gap-3 rounded-xl border border-[#ddd] bg-white px-4 py-3 cursor-pointer hover:border-[#FF385C]/50"><input type="checkbox" checked={cookForm.lampiran_ii} onChange={e=>updateCookForm("lampiran_ii", e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#FF385C]" /><span><span className="block text-[13px] font-semibold">Apakah Lampiran II?</span><span className="block text-[11px] text-[#aaa] mt-0.5">Jika dicentang, file lampiran ii.pdf akan ikut dilampirkan.</span></span></label>
               <div className="md:col-span-2">
                 <input ref={fileInputRef} type="file" multiple accept="application/pdf,image/*" onChange={e=>addCookFiles(Array.from(e.target.files || []))} className="hidden" />
                 <button type="button" onClick={()=>fileInputRef.current?.click()} className="w-full rounded-xl border border-dashed border-[#FF385C]/35 bg-[#FF385C]/5 px-4 py-3 text-[13px] font-semibold text-[#FF385C] hover:bg-[#FF385C]/10">Upload Lampiran / Bukti Dukung</button>
@@ -1573,7 +1566,7 @@ export default function App() {
                         />
                         <span className="min-w-0">
                           <span className="block text-[13px] font-semibold text-[#555]">Apakah Lampiran II?</span>
-                          <span className="block text-[11px] text-[#aaa] mt-0.5">Jika dicentang, n8n akan melampirkan file lampiran ii.pdf ke email.</span>
+                          <span className="block text-[11px] text-[#aaa] mt-0.5">Jika dicentang, file lampiran ii.pdf akan ikut dilampirkan ke email.</span>
                         </span>
                       </label>
                       <div>
