@@ -58,6 +58,7 @@ interface CookForm {
   email_instansi_klpd_input: string;
   sumber_pengaduan: string;
   no_surat_keluar_apip: string;
+  lampiran_ii: boolean;
   files: File[];
 }
 
@@ -73,6 +74,7 @@ const EMPTY_COOK_FORM: CookForm = {
   email_instansi_klpd_input: "",
   sumber_pengaduan: "",
   no_surat_keluar_apip: "Email Sekretaris PPH",
+  lampiran_ii: false,
   files: [],
 };
 
@@ -636,7 +638,9 @@ export default function App() {
         email_instansi_klpd: instansiEmails.join(","),
         ...(cookForm.sumber_pengaduan && { sumber_pengaduan: cookForm.sumber_pengaduan }),
         no_surat_keluar_apip: cookForm.no_surat_keluar_apip,
+        lampiran_ii: cookForm.lampiran_ii,
       },
+      lampiran_ii: cookForm.lampiran_ii,
     };
 
     const controller = new AbortController();
@@ -1338,6 +1342,18 @@ export default function App() {
                           {SUMBER_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
                       </div>
+                      <label className="flex items-start gap-3 rounded-xl border border-[#ddd] bg-white px-4 py-3 cursor-pointer hover:border-[#FF385C]/50 hover:bg-[#FF385C]/5 transition">
+                        <input
+                          type="checkbox"
+                          checked={cookForm.lampiran_ii}
+                          onChange={e=>updateCookForm("lampiran_ii", e.target.checked)}
+                          className="mt-0.5 h-4 w-4 accent-[#FF385C] cursor-pointer"
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-[13px] font-semibold text-[#555]">Apakah Lampiran II?</span>
+                          <span className="block text-[11px] text-[#aaa] mt-0.5">Jika dicentang, n8n akan melampirkan file lampiran ii.pdf ke email.</span>
+                        </span>
+                      </label>
                       <div>
                         <label className="text-[12px] font-semibold text-[#555] mb-1 block">No Surat Keluar APIP</label>
                         <input type="text" value={cookForm.no_surat_keluar_apip} disabled className="w-full border border-[#ddd] rounded-xl px-4 py-2.5 text-[14px] outline-none bg-[#f5f5f5] text-[#999] cursor-not-allowed" />
