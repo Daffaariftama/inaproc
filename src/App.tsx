@@ -46,6 +46,21 @@ interface SearchFilters {
   lokasi: string;
 }
 
+interface ManualPaketForm {
+  id_paket: string;
+  nama_paket: string;
+  pagu: string;
+  jenis_pengadaan: string;
+  metode: string;
+  instansi_klpd: string;
+  satuan_kerja: string;
+  lokasi: string;
+  jadwal_pemilihan: string;
+  sumber_dana: string;
+  isPDN: boolean;
+  isUMK: boolean;
+}
+
 interface CookForm {
   id_pengaduan: string;
   pengirim: string;
@@ -61,6 +76,21 @@ interface CookForm {
   lampiran_ii: boolean;
   files: File[];
 }
+
+const EMPTY_MANUAL_PAKET_FORM: ManualPaketForm = {
+  id_paket: "",
+  nama_paket: "",
+  pagu: "",
+  jenis_pengadaan: "Barang",
+  metode: "E-Purchasing",
+  instansi_klpd: "",
+  satuan_kerja: "",
+  lokasi: "",
+  jadwal_pemilihan: "",
+  sumber_dana: "APBN",
+  isPDN: false,
+  isUMK: false,
+};
 
 const EMPTY_COOK_FORM: CookForm = {
   id_pengaduan: "",
@@ -346,6 +376,7 @@ export default function App() {
   const [showCookForm, setShowCookForm] = useState(false);
   const [showOptional, setShowOptional] = useState(false);
   const [cookForm, setCookForm] = useState<CookForm>({...EMPTY_COOK_FORM});
+  const [manualPaketForm, setManualPaketForm] = useState<ManualPaketForm>({...EMPTY_MANUAL_PAKET_FORM});
   const toastTimer = useRef<ReturnType<typeof setTimeout>|null>(null);
   const cookFormRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -408,7 +439,13 @@ export default function App() {
     finally { setLoading(false); }
   },[]);
 
-  useEffect(()=>{ fetchData("","",0,"2026"); },[fetchData]);
+  useEffect(()=>{ if (window.location.pathname !== "/manual") fetchData("","",0,"2026"); },[fetchData]);
+
+  useEffect(() => {
+    if (window.location.pathname === "/manual" && manualPaketForm.id_paket && !cookForm.kode_paket) {
+      setCookForm(prev => ({ ...prev, kode_paket: manualPaketForm.id_paket }));
+    }
+  }, [manualPaketForm.id_paket, cookForm.kode_paket]);
 
   useEffect(() => {
     const updateInfoBarPosition = () => {
@@ -516,6 +553,10 @@ export default function App() {
     setCookForm(prev => ({ ...prev, [field]: value }));
   };
 
+  const updateManualPaketForm = <K extends keyof ManualPaketForm>(field: K, value: ManualPaketForm[K]) => {
+    setManualPaketForm(prev => ({ ...prev, [field]: value }));
+  };
+
   const addCookFiles = (files: File[]) => {
     if (!files.length) return;
     setCookForm(prev => ({
@@ -593,6 +634,52 @@ export default function App() {
     setShowCookForm(false);
     setShowOptional(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const resetManualForm = () => {
+    setManualPaketForm({...EMPTY_MANUAL_PAKET_FORM});
+    resetCookForm();
+  };
+
+  const buildManualPaket = (): PaketData & { manual: true; source: string; manual_kode_paket: string } => {
+    const idNumber = Number(onlyDigits(manualPaketForm.id_paket)) || Date.now();
+    const jenisPengadaan = manualPaketForm.jenis_pengadaan || "Barang";
+    const metode = manualPaketForm.metode || "Manual";
+
+    return {
+      id: idNumber,
+      paket: manualPaketForm.nama_paket.trim(),
+      pagu: Number(onlyDigits(manualPaketForm.pagu)) || 0,
+      satuanKerja: manualPaketForm.satuan_kerja.trim(),
+      kldi: manualPaketForm.instansi_klpd.trim(),
+      idKldi: "MANUAL",
+      metode,
+      idMetode: 0,
+      lokasi: manualPaketForm.lokasi.trim(),
+      idlokasi: 0,
+      idsLokasi: "",
+      pemilihan: manualPaketForm.jadwal_pemilihan.trim(),
+      idBulan: 0,
+      jenisPengadaan,
+      idJenisPengadaan: 0,
+      sumberDana: manualPaketForm.sumber_dana.trim() || "—",
+      isPDN: manualPaketForm.isPDN,
+      isUMK: manualPaketForm.isUMK,
+      idSatker: 0,
+      id_referensi: 0,
+      pds: false,
+      manual: true,
+      source: "manual",
+      manual_kode_paket: manualPaketForm.id_paket.trim(),
+    };
+  };
+
+  const sendManualToWebhook = async () => {
+    if (!manualPaketForm.id_paket || !manualPaketForm.nama_paket || !manualPaketForm.pagu || !manualPaketForm.instansi_klpd || !manualPaketForm.satuan_kerja || !manualPaketForm.lokasi) {
+      showToast("error", "Harap isi data paket manual yang wajib");
+      return;
+    }
+    await sendToWebhook(buildManualPaket());
   };
 
   const sendToWebhook = async (pkg: PaketData) => {
@@ -716,6 +803,136 @@ export default function App() {
       setSending(false);
     }
   };
+
+  if (window.location.pathname === "/manual") {
+    const manualRequiredFilled = manualPaketForm.id_paket && manualPaketForm.nama_paket && manualPaketForm.pagu && manualPaketForm.instansi_klpd && manualPaketForm.satuan_kerja && manualPaketForm.lokasi;
+
+    return (
+      <div className="min-h-screen bg-[#f7f7f7] text-[#222]" style={{fontFamily:"'Inter',sans-serif"}}>
+        <header className="sticky top-0 z-30 border-b border-[#eee] bg-white/95 backdrop-blur">
+          <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4">
+            <div>
+              <p className="text-[12px] font-semibold uppercase tracking-wider text-[#FF385C]">Input Manual</p>
+              <h1 className="text-[20px] font-bold">Paket tidak ditemukan</h1>
+              <p className="text-[12px] text-[#717171]">Isi data paket manual, lalu kirim email lewat workflow yang sama.</p>
+            </div>
+            <a href="/" className="rounded-full border border-[#ddd] bg-white px-4 py-2 text-[13px] font-semibold text-[#555] hover:border-[#FF385C] hover:text-[#FF385C] transition">← Cari Paket</a>
+          </div>
+        </header>
+
+        <main className="mx-auto max-w-5xl px-4 py-6 space-y-6">
+          <section className="rounded-3xl bg-white p-5 shadow-sm border border-[#eee]">
+            <div className="mb-5 flex items-start gap-3">
+              <div className="rounded-2xl bg-[#FF385C]/10 p-3 text-[#FF385C]"><Package size={22}/></div>
+              <div>
+                <h2 className="text-[17px] font-bold">Data Paket Manual</h2>
+                <p className="text-[12px] text-[#717171]">Field bertanda * wajib diisi karena akan masuk ke dokumen/email.</p>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="text-[12px] font-semibold text-[#555] mb-1 block">ID/Kode Paket <span className="text-red-500">*</span></label>
+                <input value={manualPaketForm.id_paket} onChange={e=>updateManualPaketForm("id_paket", e.target.value)} placeholder="Masukkan ID/Kode paket" className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" />
+              </div>
+              <div>
+                <label className="text-[12px] font-semibold text-[#555] mb-1 block">Pagu <span className="text-red-500">*</span></label>
+                <input inputMode="numeric" value={compactNumber(onlyDigits(manualPaketForm.pagu))} onChange={e=>updateManualPaketForm("pagu", onlyDigits(e.target.value))} placeholder="Contoh: 100.000.000" className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-[12px] font-semibold text-[#555] mb-1 block">Nama Paket <span className="text-red-500">*</span></label>
+                <input value={manualPaketForm.nama_paket} onChange={e=>updateManualPaketForm("nama_paket", e.target.value)} placeholder="Nama paket manual" className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" />
+              </div>
+              <div>
+                <label className="text-[12px] font-semibold text-[#555] mb-1 block">Jenis Pengadaan</label>
+                <select value={manualPaketForm.jenis_pengadaan} onChange={e=>updateManualPaketForm("jenis_pengadaan", e.target.value)} className="w-full rounded-xl border border-[#ddd] bg-white px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]">
+                  <option value="Barang">Barang</option>
+                  <option value="Pekerjaan Konstruksi">Pekerjaan Konstruksi</option>
+                  <option value="Jasa Konsultansi">Jasa Konsultansi</option>
+                  <option value="Jasa Lainnya">Jasa Lainnya</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[12px] font-semibold text-[#555] mb-1 block">Metode</label>
+                <select value={manualPaketForm.metode} onChange={e=>updateManualPaketForm("metode", e.target.value)} className="w-full rounded-xl border border-[#ddd] bg-white px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]">
+                  {METODE_OPTIONS.map(opt => <option key={opt.id} value={opt.label}>{opt.label}</option>)}
+                  <option value="Manual">Manual</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[12px] font-semibold text-[#555] mb-1 block">Instansi/KLPD <span className="text-red-500">*</span></label>
+                <input value={manualPaketForm.instansi_klpd} onChange={e=>updateManualPaketForm("instansi_klpd", e.target.value)} placeholder="Nama instansi/KLPD" className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" />
+              </div>
+              <div>
+                <label className="text-[12px] font-semibold text-[#555] mb-1 block">Satuan Kerja <span className="text-red-500">*</span></label>
+                <input value={manualPaketForm.satuan_kerja} onChange={e=>updateManualPaketForm("satuan_kerja", e.target.value)} placeholder="Nama satuan kerja" className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" />
+              </div>
+              <div>
+                <label className="text-[12px] font-semibold text-[#555] mb-1 block">Lokasi <span className="text-red-500">*</span></label>
+                <input value={manualPaketForm.lokasi} onChange={e=>updateManualPaketForm("lokasi", e.target.value)} placeholder="Provinsi/Kabupaten/Kota" className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" />
+              </div>
+              <div>
+                <label className="text-[12px] font-semibold text-[#555] mb-1 block">Jadwal Pemilihan</label>
+                <input value={manualPaketForm.jadwal_pemilihan} onChange={e=>updateManualPaketForm("jadwal_pemilihan", e.target.value)} placeholder="Contoh: Mei 2026" className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" />
+              </div>
+              <div>
+                <label className="text-[12px] font-semibold text-[#555] mb-1 block">Sumber Dana</label>
+                <input value={manualPaketForm.sumber_dana} onChange={e=>updateManualPaketForm("sumber_dana", e.target.value)} placeholder="APBN/APBD/dll" className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" />
+              </div>
+              <div className="md:col-span-2 flex flex-wrap gap-3">
+                <label className="flex items-center gap-2 rounded-xl border border-[#ddd] px-4 py-2.5 text-[13px] font-semibold cursor-pointer"><input type="checkbox" checked={manualPaketForm.isPDN} onChange={e=>updateManualPaketForm("isPDN", e.target.checked)} className="accent-[#FF385C]" /> PDN</label>
+                <label className="flex items-center gap-2 rounded-xl border border-[#ddd] px-4 py-2.5 text-[13px] font-semibold cursor-pointer"><input type="checkbox" checked={manualPaketForm.isUMK} onChange={e=>updateManualPaketForm("isUMK", e.target.checked)} className="accent-[#FF385C]" /> UMK</label>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-3xl bg-white p-5 shadow-sm border border-[#eee]">
+            <div className="mb-5 flex items-start gap-3">
+              <div className="rounded-2xl bg-[#FF385C]/10 p-3 text-[#FF385C]"><Send size={22}/></div>
+              <div>
+                <h2 className="text-[17px] font-bold">Form Eskalasi</h2>
+                <p className="text-[12px] text-[#717171]">Data ini sama seperti form paket hasil pencarian.</p>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <input type="hidden" value={cookForm.kode_paket || manualPaketForm.id_paket} readOnly />
+              <div><label className="text-[12px] font-semibold text-[#555] mb-1 block">ID Pengaduan <span className="text-red-500">*</span></label><input value={cookForm.id_pengaduan} onChange={e=>updateCookForm("id_pengaduan", e.target.value)} className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" /></div>
+              <div><label className="text-[12px] font-semibold text-[#555] mb-1 block">Tanggal Pengaduan <span className="text-red-500">*</span></label><input type="date" value={cookForm.tanggal_pengaduan} onChange={e=>updateCookForm("tanggal_pengaduan", e.target.value)} className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" /></div>
+              <div><label className="text-[12px] font-semibold text-[#555] mb-1 block">Pengirim <span className="text-red-500">*</span></label><input value={cookForm.pengirim} onChange={e=>updateCookForm("pengirim", e.target.value)} className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" /></div>
+              <div><label className="text-[12px] font-semibold text-[#555] mb-1 block">Email Pengirim <span className="text-red-500">*</span></label><input type="email" value={cookForm.email_pengirim} onChange={e=>updateCookForm("email_pengirim", e.target.value)} className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" /></div>
+              <div><label className="text-[12px] font-semibold text-[#555] mb-1 block">Kode Paket <span className="text-red-500">*</span></label><input value={cookForm.kode_paket} onChange={e=>updateCookForm("kode_paket", e.target.value)} placeholder={manualPaketForm.id_paket || "Kode paket"} className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" /></div>
+              <div><label className="text-[12px] font-semibold text-[#555] mb-1 block">Email Instansi KLPD <span className="text-red-500">*</span></label><input value={cookForm.email_instansi_klpd} onChange={e=>updateCookForm("email_instansi_klpd", e.target.value)} placeholder="email1@instansi.go.id, email2@instansi.go.id" className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" /></div>
+              <div className="md:col-span-2"><label className="text-[12px] font-semibold text-[#555] mb-1 block">Uraian Pengaduan <span className="text-red-500">*</span></label><textarea value={cookForm.uraian_pengaduan} onChange={e=>updateCookForm("uraian_pengaduan", e.target.value)} rows={3} className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C] resize-none" /></div>
+              <div className="md:col-span-2"><label className="text-[12px] font-semibold text-[#555] mb-1 block">Substansi Pengaduan <span className="text-red-500">*</span></label><textarea value={cookForm.substansi_pengaduan} onChange={e=>updateCookForm("substansi_pengaduan", e.target.value)} rows={3} className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C] resize-none" /></div>
+              <div><label className="text-[12px] font-semibold text-[#555] mb-1 block">Sumber Pengaduan</label><select value={cookForm.sumber_pengaduan} onChange={e=>updateCookForm("sumber_pengaduan", e.target.value)} className="w-full rounded-xl border border-[#ddd] bg-white px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]"><option value="">— Pilih sumber —</option>{SUMBER_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
+              <label className="flex items-start gap-3 rounded-xl border border-[#ddd] bg-white px-4 py-3 cursor-pointer hover:border-[#FF385C]/50"><input type="checkbox" checked={cookForm.lampiran_ii} onChange={e=>updateCookForm("lampiran_ii", e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#FF385C]" /><span><span className="block text-[13px] font-semibold">Apakah Lampiran II?</span><span className="block text-[11px] text-[#aaa] mt-0.5">Jika dicentang, n8n akan melampirkan lampiran ii.pdf.</span></span></label>
+              <div className="md:col-span-2">
+                <input ref={fileInputRef} type="file" multiple accept="application/pdf,image/*" onChange={e=>addCookFiles(Array.from(e.target.files || []))} className="hidden" />
+                <button type="button" onClick={()=>fileInputRef.current?.click()} className="w-full rounded-xl border border-dashed border-[#FF385C]/35 bg-[#FF385C]/5 px-4 py-3 text-[13px] font-semibold text-[#FF385C] hover:bg-[#FF385C]/10">Upload Lampiran / Bukti Dukung</button>
+                {cookForm.files.length > 0 && <div className="mt-3 space-y-2">{cookForm.files.map((file,index)=><div key={`${file.name}-${index}`} className="flex items-center justify-between gap-3 rounded-xl border border-[#eee] px-3 py-2 text-[13px]"><span className="truncate">{file.name}</span><button type="button" onClick={()=>removeCookFile(index)} className="text-red-600 font-semibold">Hapus</button></div>)}</div>}
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button type="button" onClick={resetManualForm} disabled={sending} className="rounded-xl border border-[#ddd] px-5 py-3 text-[14px] font-semibold text-[#555] hover:bg-[#f7f7f7] disabled:opacity-60">Reset</button>
+              <button type="button" onClick={sendManualToWebhook} disabled={sending || !manualRequiredFilled} className="rounded-xl bg-[#FF385C] px-6 py-3 text-[14px] font-semibold text-white hover:bg-[#e0334f] disabled:bg-[#ffb3c1] flex items-center justify-center gap-2">{sending ? <><Loader2 size={16} className="animate-spin" /> Mengirim...</> : <><Send size={16}/> Kirim Email Manual</>}</button>
+            </div>
+          </section>
+        </main>
+
+        {toast && (
+          <div key={toast.id} className={`fixed bottom-5 left-1/2 z-50 flex max-w-[calc(100vw-24px)] -translate-x-1/2 items-center gap-3 rounded-2xl border px-4 py-3 text-[13px] shadow-lg ${toast.type === "loading" ? "bg-white border-[#ddd] text-[#222]" : ""} ${toast.type === "success" ? "bg-emerald-50 border-emerald-200 text-emerald-800" : ""} ${toast.type === "error" ? "bg-red-50 border-red-200 text-red-800" : ""}`}>
+            {toast.type === "loading" && <Send size={16} className="animate-pulse text-[#FF385C]" />}
+            {toast.type === "success" && <CheckCircle2 size={16} className="text-emerald-600" />}
+            {toast.type === "error" && <AlertCircle size={16} className="text-red-600" />}
+            <span className="whitespace-pre-wrap break-words">{toast.message}</span>
+            <button onClick={()=>setToast(null)} className="ml-2 opacity-50 hover:opacity-100 transition"><X size={14} /></button>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-white text-[#222]" style={{fontFamily:"'Inter',sans-serif"}}>
