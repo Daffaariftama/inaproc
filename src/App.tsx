@@ -508,7 +508,7 @@ export default function App() {
     const id = Date.now();
     setToast({type, message, id});
     if(type !== "loading") {
-      toastTimer.current = setTimeout(()=> setToast(null), 3500);
+      toastTimer.current = setTimeout(()=> setToast(null), type === "error" ? 12000 : 5000);
     }
   };
 
@@ -677,10 +677,17 @@ export default function App() {
         : await res.text().catch(() => "");
 
       if (!res.ok) {
-        const message = typeof responseBody === "object" && responseBody && "message" in responseBody
-          ? String(responseBody.message)
-          : `HTTP ${res.status}`;
-        throw new Error(message);
+        const responseMessage = typeof responseBody === "object" && responseBody
+          ? [
+              "message" in responseBody ? String(responseBody.message) : "",
+              "error" in responseBody ? String(responseBody.error) : "",
+              "detail" in responseBody ? String(responseBody.detail) : "",
+              "description" in responseBody ? String(responseBody.description) : "",
+            ].filter(Boolean).join(" — ")
+          : typeof responseBody === "string" && responseBody.trim()
+            ? responseBody.trim()
+            : "";
+        throw new Error(responseMessage || `HTTP ${res.status}`);
       }
 
       const sentEmails = typeof responseBody === "object" && responseBody && "sentTo" in responseBody && Array.isArray(responseBody.sentTo)
@@ -1117,7 +1124,6 @@ export default function App() {
                       </span>
                       {selected.isPDN && <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">PDN</span>}
                       {selected.isUMK && <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">UMK</span>}
-                      {selected.pds && <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200">PDS</span>}
                     </div>
                   </div>
 
@@ -1145,7 +1151,6 @@ export default function App() {
                       { label: "Sumber Dana",         value: toDisplayText(selected.sumberDana) },
                       { label: "Produk Dalam Negeri", value: selected.isPDN ? "✅ Ya" : "❌ Tidak" },
                       { label: "Usaha Mikro & Kecil", value: selected.isUMK ? "✅ Ya" : "❌ Tidak" },
-                      { label: "PDS",                 value: selected.pds ? "✅ Ya" : "❌ Tidak" },
                       { label: "ID Referensi",        value: toDisplayText(selected.id_referensi) },
                     ] as { label: string; value: string }[]).map(({ label, value }) => (
                       <div key={label} className="flex justify-between items-start gap-4 py-3">
@@ -1392,7 +1397,7 @@ export default function App() {
           {toast.type === "loading" && <Send size={16} className="animate-pulse text-[#FF385C]" />}
           {toast.type === "success" && <CheckCircle2 size={16} className="text-emerald-600" />}
           {toast.type === "error" && <AlertCircle size={16} className="text-red-600" />}
-          <span>{toast.message}</span>
+          <span className="whitespace-pre-wrap break-words">{toast.message}</span>
           <button onClick={()=>setToast(null)} className="ml-2 opacity-50 hover:opacity-100 transition">
             <X size={14} />
           </button>
