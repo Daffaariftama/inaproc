@@ -675,7 +675,7 @@ export default function App() {
   };
 
   const sendManualToWebhook = async () => {
-    if (!manualPaketForm.id_paket || !manualPaketForm.nama_paket || !manualPaketForm.pagu || !manualPaketForm.instansi_klpd || !manualPaketForm.satuan_kerja || !manualPaketForm.lokasi) {
+    if (!manualPaketForm.nama_paket || !manualPaketForm.instansi_klpd) {
       showToast("error", "Harap isi data paket manual yang wajib");
       return;
     }
@@ -683,8 +683,11 @@ export default function App() {
   };
 
   const sendToWebhook = async (pkg: PaketData) => {
+    const isManualPackage = "manual" in pkg && pkg.manual === true;
+    const kodePaket = cookForm.kode_paket || (isManualPackage ? manualPaketForm.id_paket : "");
+
     // validate required fields
-    if (!cookForm.id_pengaduan || !cookForm.pengirim || !cookForm.email_pengirim || !cookForm.tanggal_pengaduan || !cookForm.kode_paket || !cookForm.uraian_pengaduan || !cookForm.substansi_pengaduan) {
+    if (!cookForm.id_pengaduan || !cookForm.pengirim || !cookForm.email_pengirim || !cookForm.tanggal_pengaduan || (!isManualPackage && !kodePaket) || !cookForm.uraian_pengaduan || !cookForm.substansi_pengaduan) {
       showToast("error", "Harap isi semua field yang wajib");
       return;
     }
@@ -716,7 +719,7 @@ export default function App() {
         pengirim: cookForm.pengirim,
         email_pengirim: cookForm.email_pengirim,
         tanggal_pengaduan: cookForm.tanggal_pengaduan,
-        kode_paket: cookForm.kode_paket,
+        kode_paket: kodePaket,
         uraian_pengaduan: cookForm.uraian_pengaduan,
         substansi_pengaduan: cookForm.substansi_pengaduan,
         substansi_aduan: cookForm.substansi_pengaduan,
@@ -805,7 +808,7 @@ export default function App() {
   };
 
   if (window.location.pathname === "/manual") {
-    const manualRequiredFilled = manualPaketForm.id_paket && manualPaketForm.nama_paket && manualPaketForm.pagu && manualPaketForm.instansi_klpd && manualPaketForm.satuan_kerja && manualPaketForm.lokasi;
+    const manualRequiredFilled = manualPaketForm.nama_paket && manualPaketForm.instansi_klpd;
 
     return (
       <div className="min-h-screen bg-[#f7f7f7] text-[#222]" style={{fontFamily:"'Inter',sans-serif"}}>
@@ -832,11 +835,11 @@ export default function App() {
 
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <label className="text-[12px] font-semibold text-[#555] mb-1 block">ID/Kode Paket <span className="text-red-500">*</span></label>
+                <label className="text-[12px] font-semibold text-[#555] mb-1 block">ID/Kode Paket</label>
                 <input value={manualPaketForm.id_paket} onChange={e=>updateManualPaketForm("id_paket", e.target.value)} placeholder="Masukkan ID/Kode paket" className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" />
               </div>
               <div>
-                <label className="text-[12px] font-semibold text-[#555] mb-1 block">Pagu <span className="text-red-500">*</span></label>
+                <label className="text-[12px] font-semibold text-[#555] mb-1 block">Pagu</label>
                 <input inputMode="numeric" value={compactNumber(onlyDigits(manualPaketForm.pagu))} onChange={e=>updateManualPaketForm("pagu", onlyDigits(e.target.value))} placeholder="Contoh: 100.000.000" className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" />
               </div>
               <div className="md:col-span-2">
@@ -864,11 +867,11 @@ export default function App() {
                 <input value={manualPaketForm.instansi_klpd} onChange={e=>updateManualPaketForm("instansi_klpd", e.target.value)} placeholder="Nama instansi/KLPD" className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" />
               </div>
               <div>
-                <label className="text-[12px] font-semibold text-[#555] mb-1 block">Satuan Kerja <span className="text-red-500">*</span></label>
+                <label className="text-[12px] font-semibold text-[#555] mb-1 block">Satuan Kerja</label>
                 <input value={manualPaketForm.satuan_kerja} onChange={e=>updateManualPaketForm("satuan_kerja", e.target.value)} placeholder="Nama satuan kerja" className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" />
               </div>
               <div>
-                <label className="text-[12px] font-semibold text-[#555] mb-1 block">Lokasi <span className="text-red-500">*</span></label>
+                <label className="text-[12px] font-semibold text-[#555] mb-1 block">Lokasi</label>
                 <input value={manualPaketForm.lokasi} onChange={e=>updateManualPaketForm("lokasi", e.target.value)} placeholder="Provinsi/Kabupaten/Kota" className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" />
               </div>
               <div>
@@ -894,7 +897,6 @@ export default function App() {
               <div><label className="text-[12px] font-semibold text-[#555] mb-1 block">Tanggal Pengaduan <span className="text-red-500">*</span></label><input type="date" value={cookForm.tanggal_pengaduan} onChange={e=>updateCookForm("tanggal_pengaduan", e.target.value)} className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" /></div>
               <div><label className="text-[12px] font-semibold text-[#555] mb-1 block">Pengirim <span className="text-red-500">*</span></label><input value={cookForm.pengirim} onChange={e=>updateCookForm("pengirim", e.target.value)} className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" /></div>
               <div><label className="text-[12px] font-semibold text-[#555] mb-1 block">Email Pengirim <span className="text-red-500">*</span></label><input type="email" value={cookForm.email_pengirim} onChange={e=>updateCookForm("email_pengirim", e.target.value)} className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" /></div>
-              <div><label className="text-[12px] font-semibold text-[#555] mb-1 block">Kode Paket <span className="text-red-500">*</span></label><input value={cookForm.kode_paket} onChange={e=>updateCookForm("kode_paket", e.target.value)} placeholder={manualPaketForm.id_paket || "Kode paket"} className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" /></div>
               <div><label className="text-[12px] font-semibold text-[#555] mb-1 block">Email Instansi KLPD <span className="text-red-500">*</span></label><input value={cookForm.email_instansi_klpd} onChange={e=>updateCookForm("email_instansi_klpd", e.target.value)} placeholder="email1@instansi.go.id, email2@instansi.go.id" className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C]" /></div>
               <div className="md:col-span-2"><label className="text-[12px] font-semibold text-[#555] mb-1 block">Uraian Pengaduan <span className="text-red-500">*</span></label><textarea value={cookForm.uraian_pengaduan} onChange={e=>updateCookForm("uraian_pengaduan", e.target.value)} rows={3} className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C] resize-none" /></div>
               <div className="md:col-span-2"><label className="text-[12px] font-semibold text-[#555] mb-1 block">Substansi Pengaduan <span className="text-red-500">*</span></label><textarea value={cookForm.substansi_pengaduan} onChange={e=>updateCookForm("substansi_pengaduan", e.target.value)} rows={3} className="w-full rounded-xl border border-[#ddd] px-4 py-2.5 text-[14px] outline-none focus:border-[#FF385C] resize-none" /></div>
